@@ -1,146 +1,342 @@
-# ORIGEN DEL PROYECTO
+# Arquitectura del Proyecto
+## Rockomix-Partykit
 
-## Proyecto
-
-**Rockomix PartyKit**
+Última actualización: Julio 2026
 
 ---
 
 # Objetivo
 
-Este proyecto reconstruye Rockomix desde cero utilizando la infraestructura oficial de PartyKit / Cloudflare.
+Reconstruir Rockomix utilizando como base el proyecto original **MyKaraoke** de EMPZ, sustituyendo progresivamente la infraestructura de PartyKit clásico por la infraestructura oficial PartyServer / Cloudflare 2026.
 
-**NO** es una migración de proyectos anteriores.
+El objetivo NO es reescribir la aplicación.
 
-**NO** es un fork de MyKaraoke.
-
-Es una implementación limpia que utiliza la infraestructura oficial y toma a MyKaraoke únicamente como referencia funcional.
+El objetivo es conservar el comportamiento original y reemplazar únicamente la infraestructura.
 
 ---
 
-# Referencias oficiales
+# Fuentes de Verdad
 
-## Infraestructura
+El proyecto utiliza tres fuentes claramente diferenciadas.
 
-Repositorio oficial:
+## 1. MyKaraoke Original (Autoridad del Producto)
 
-https://github.com/cloudflare/partykit
+Repositorio base.
 
-Referencia local:
+Responsable de definir:
 
-E:\Python\cloudflare\partykit-2026
-
-Se consulta únicamente para:
-
-- PartyServer
-- PartySocket
-- Cloudflare Workers
-- Durable Objects
-- Routing oficial
-- Runtime oficial
-
----
-
-## Referencia del producto
-
-Repositorio original:
-
-https://github.com/empz/my-karaoke-party
-
-Referencia local:
-
-E:\Python\cloudflare\mykaraoke-original
-
-Se consulta únicamente para:
-
-- Interfaz de usuario
-- Flujo de karaoke
+- comportamiento funcional
+- flujo de usuario
+- estructura de la aplicación
+- UI
+- API
 - Playlist
-- Roles
-- Fairness
-- Funcionalidades del producto
+- reproducción
+- búsqueda
+- Prisma
+- tRPC
+- Party original
+
+Todo lo relacionado con el funcionamiento del producto debe provenir de esta fuente.
+
+Nunca debe modificarse por intentar seguir ejemplos oficiales.
 
 ---
 
-# Reglas del proyecto
+## 2. PartyKit / PartyServer Oficial 2026 (Autoridad de Infraestructura)
 
-La infraestructura SIEMPRE proviene de:
+Repositorio oficial.
 
-- PartyKit 2026
+Responsable únicamente de definir:
 
-El comportamiento funcional SIEMPRE se toma de:
-
-- MyKaraoke Original
-
-Todo el código propio de Rockomix se desarrolla únicamente dentro de este repositorio.
-
----
-
-# Regla de oro
-
-Antes de implementar cualquier funcionalidad se debe responder:
-
-### 1. ¿Ya existe en PartyKit 2026?
-
-Si existe, utilizar la implementación oficial.
-
-No reinventar infraestructura.
-
----
-
-### 2. Si no existe...
-
-Consultar cómo lo resolvió MyKaraoke Original.
-
-Tomarlo únicamente como referencia funcional.
-
----
-
-### 3. Si tampoco existe...
-
-Implementarlo como código propio de Rockomix.
-
----
-
-# Lo que este proyecto NO debe hacer
-
-Nunca volver a implementar:
-
-- PartyServer
-- PartySocket
 - Cloudflare Worker
 - Durable Objects
-- Runtime oficial
-- Routing oficial
+- Wrangler
+- PartyServer
+- bindings
+- migraciones
+- runtime oficial
+- patrones modernos de infraestructura
 
-La infraestructura pertenece a PartyKit.
+Nunca define lógica de negocio.
 
-Rockomix únicamente implementa la lógica del producto.
+Nunca define comportamiento del producto.
 
----
-
-# Objetivo final
-
-Separar completamente:
-
-- Infraestructura
-- Producto
-- Personalizaciones de Rockomix
-
-para mantener un proyecto limpio, fácil de actualizar y alineado con la arquitectura oficial.
+Nunca sustituye MyKaraoke como referencia funcional.
 
 ---
 
-# Filosofía de desarrollo
+## 3. Rockomix Producción (Experiencia)
 
-- Commits pequeños.
-- Una funcionalidad por vez.
-- Probar antes de continuar.
-- Documentar las decisiones importantes.
-- Mantener siempre una referencia clara entre infraestructura, producto y personalización.
+Repositorio de producción.
 
-> Si en algún momento surge la duda de "¿dónde debe implementarse esto?", la respuesta siempre debe buscarse en este orden:
+No es autoridad.
 
-1. PartyKit 2026 (infraestructura)
-2. MyKaraoke Original (producto)
-3. Rockomix (personalización)
+Sirve únicamente como evidencia de soluciones previamente implementadas.
+
+Ejemplos:
+
+- Branding Rockomix
+- Worker Cloudflare
+- migración previa
+- Co-host
+- mejoras locales
+- bootstrap de red
+- integración previa
+
+Toda decisión tomada desde producción debe validarse contra las dos fuentes oficiales anteriores.
+
+---
+
+# Estrategia Definitiva
+
+Inicialmente se intentó construir el proyecto desde una estructura mínima.
+
+Después de múltiples iteraciones se concluyó que esa estrategia alejaba el proyecto del objetivo principal.
+
+Se adopta la siguiente estrategia definitiva:
+
+1.
+
+Copiar íntegramente MyKaraoke Original.
+
+2.
+
+Verificar que el proyecto arranque.
+
+3.
+
+Una vez funcionando:
+
+sustituir únicamente la infraestructura.
+
+Nunca reconstruir la aplicación desde cero.
+
+---
+
+# Principio Fundamental
+
+Primero hacer funcionar.
+
+Después mejorar.
+
+Nunca al revés.
+
+---
+
+# Arquitectura Física
+
+La estructura base del proyecto proviene de MyKaraoke Original.
+
+Las carpetas principales son:
+
+- party/
+- prisma/
+- public/
+- scripts/
+- src/
+- .github/
+
+junto con todos los archivos de configuración originales.
+
+La infraestructura moderna se incorporará progresivamente sin alterar la organización general del proyecto.
+
+---
+
+# Variables de Entorno
+
+Durante la Fase A se mantiene el contrato original.
+
+Variables obligatorias:
+
+- DATABASE_URL
+- DATABASE_URL_NON_POOLING
+- YOUTUBE_API_KEY
+- NEXT_PUBLIC_PARTYKIT_URL
+
+Variables de soporte:
+
+- NODE_ENV
+- SKIP_ENV_VALIDATION
+
+Las variables específicas de PartyServer se incorporarán únicamente cuando el código deje de depender de PartyKit.
+
+---
+
+# Reglas de Migración
+
+Cada cambio debe cumplir las siguientes reglas.
+
+## Permitido
+
+- sustituir infraestructura
+- actualizar runtime
+- actualizar Wrangler
+- actualizar Durable Objects
+- adaptar PartyServer
+
+## No permitido
+
+- reescribir funcionalidades
+- cambiar comportamiento
+- modificar UX
+- cambiar rutas
+- cambiar flujo de usuario
+- eliminar funcionalidades originales
+
+---
+
+# Flujo de Trabajo
+
+Cada iteración seguirá este ciclo.
+
+1.
+
+Arrancar proyecto.
+
+2.
+
+Detectar el primer error real.
+
+3.
+
+Corregir únicamente ese error.
+
+4.
+
+Commit.
+
+5.
+
+Repetir.
+
+Nunca corregir múltiples problemas simultáneamente.
+
+---
+
+# Hitos
+
+## Hito A1 ✅
+
+Proyecto original copiado.
+
+Dependencias instaladas.
+
+Variables de entorno configuradas.
+
+Next.js inicia correctamente.
+
+Estado:
+
+COMPLETADO.
+
+---
+
+## Hito A2
+
+Verificación funcional del proyecto original.
+
+Objetivo:
+
+Confirmar que la aplicación funciona exactamente igual que MyKaraoke Original.
+
+---
+
+## Hito B
+
+Migración de PartyKit clásico.
+
+Objetivo:
+
+Sustituir PartyKit por PartyServer oficial.
+
+Sin modificar comportamiento.
+
+---
+
+## Hito C
+
+Infraestructura oficial Cloudflare.
+
+Objetivo:
+
+Wrangler oficial.
+
+Durable Objects oficiales.
+
+Bindings oficiales.
+
+---
+
+## Hito D
+
+Recuperación funcional.
+
+Objetivo:
+
+- salas
+- playlist
+- reproducción
+- sincronización
+
+---
+
+## Hito E
+
+Roles.
+
+Objetivo:
+
+Host.
+
+Co-host.
+
+Invitados.
+
+---
+
+## Hito F
+
+Branding Rockomix.
+
+Último paso del proyecto.
+
+Incluye:
+
+- identidad visual
+- mejoras UX
+- funciones propias
+- optimizaciones
+
+---
+
+# Estado Actual
+
+Estado de la aplicación:
+
+✅ Proyecto original reconstruido.
+
+✅ Proyecto arranca correctamente con Next.js.
+
+✅ Base estable para comenzar la sustitución de PartyKit.
+
+No se iniciará ninguna migración estructural adicional hasta mantener un proyecto funcional en cada hito.
+
+# Filosofía del Proyecto
+
+La aplicación es el activo principal.
+
+La infraestructura es un medio, no un fin.
+
+Siempre que exista un conflicto entre:
+
+- reconstruir la aplicación
+- modernizar la infraestructura
+
+se priorizará mantener el comportamiento original de la aplicación.
+
+La infraestructura deberá adaptarse al producto, no el producto a la infraestructura.
+
+El criterio de éxito no será tener el código más moderno.
+
+El criterio de éxito será que Rockomix se comporte igual que MyKaraoke, utilizando infraestructura oficial y mantenible.
