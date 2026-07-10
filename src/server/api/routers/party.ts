@@ -22,21 +22,29 @@ export const partyRouter = createTRPCRouter({
       );
 
       if (!res.ok) {
-        await ctx.db.party.delete({ where: { id: party.id } });
+        await ctx.db.party.delete({
+          where: {
+            id: party.id,
+          },
+        });
 
         log.error("Failed to create party", { response: res });
+
         throw new Error("Failed to create party");
       }
 
       log.info("Party created", { party });
+
       return party;
     }),
 
   getByHash: publicProcedure
     .input(z.object({ hash: z.string() }))
     .query(({ input, ctx }) => {
-      const party = ctx.db.party.findUnique({ where: { hash: input.hash } });
-
-      return party;
+      return ctx.db.party.findUnique({
+        where: {
+          hash: input.hash,
+        },
+      });
     }),
 });

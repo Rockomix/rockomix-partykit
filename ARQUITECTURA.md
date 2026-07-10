@@ -340,3 +340,17 @@ La infraestructura deberá adaptarse al producto, no el producto a la infraestru
 El criterio de éxito no será tener el código más moderno.
 
 El criterio de éxito será que Rockomix se comporte igual que MyKaraoke, utilizando infraestructura oficial y mantenible.
+
+# Punto Único de Integración
+
+El producto NO depende directamente de PartyKit.
+
+Toda la comunicación con la infraestructura de salas pasa por:
+
+src/server/api/routers/party.ts
+
+Este archivo constituye el Adaptador entre la aplicación y la infraestructura de sincronización.
+
+Durante la migración únicamente este adaptador deberá cambiar de implementación.
+
+El resto del producto permanecerá sin modificaciones.

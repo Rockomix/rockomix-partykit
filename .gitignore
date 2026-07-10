@@ -47,3 +47,6 @@ yarn-error.log*
 
 # PWA
 /public/sw.js
+
+# Wrangler
+.wrangler/
