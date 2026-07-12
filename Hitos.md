@@ -1,176 +1,90 @@
-# Hitos del Proyecto
-## Rockomix-Partykit
+# Hitos del Proyecto Rockomix PartyKit
 
-Última actualización: Julio 2026
+## Estado general
 
----
+**Fase actual:** Reconstrucción funcional sobre infraestructura PartyServer.
 
-# Hito A0 — Preparación del Proyecto ✅
-
-## Objetivo
-
-Definir la estrategia definitiva de reconstrucción.
-
-## Resultado
-
-- Se descartó la reconstrucción desde un proyecto vacío.
-- Se decidió utilizar MyKaraoke Original como base del proyecto.
-- Se establecieron las tres fuentes oficiales del proyecto:
-  - MyKaraoke Original (Producto)
-  - PartyKit / PartyServer Oficial 2026 (Infraestructura)
-  - Rockomix Producción (Experiencia)
-
-Estado:
-
-✅ COMPLETADO
+La infraestructura base ya quedó integrada y validada. A partir de este punto los siguientes trabajos corresponden principalmente a recuperar funcionalidades existentes de Rockomix Producción utilizando PartyServer como infraestructura.
 
 ---
 
-# Hito A1 — Reconstrucción del Proyecto Base ✅
+# Hito 0 - Preparación del proyecto
+## Estado: ✅ COMPLETADO
 
-## Objetivo
+### Objetivo
+Reconstruir una copia limpia del proyecto original para iniciar la migración de forma controlada.
 
-Reconstruir Rockomix-Partykit utilizando exactamente la estructura del proyecto original.
+### Logros
 
-## Resultado
-
-Se copiaron correctamente:
-
-- party/
-- prisma/
-- public/
-- src/
-- scripts/
-- .github/
-
-junto con los archivos de configuración originales.
-
-No se copiaron archivos generados ni específicos del entorno.
-
-Estado:
-
-✅ COMPLETADO
+- Se creó el repositorio `rockomix-partykit`.
+- Se copió la estructura base de MyKaraoke Original.
+- Se conservaron los nombres y organización originales.
+- Se restauró la configuración inicial del proyecto.
+- Se documentó la arquitectura inicial.
 
 ---
 
-# Hito A2 — Variables de Entorno ✅
+# Hito 1 - Restauración del entorno
+## Estado: ✅ COMPLETADO
 
-## Objetivo
+### Objetivo
 
-Recuperar el contrato original de variables de entorno.
+Lograr que el proyecto vuelva a iniciar correctamente.
 
-## Variables restauradas
+### Logros
 
-- DATABASE_URL
-- DATABASE_URL_NON_POOLING
-- YOUTUBE_API_KEY
-- NEXT_PUBLIC_PARTYKIT_URL
+- Restauración de `.env.local`.
+- Restauración de variables originales.
+- Corrección de validación de entorno.
+- Prisma vuelve a inicializar correctamente.
+- Base de datos conectada.
+- Next.js inicia sin errores.
 
-Variables auxiliares disponibles:
+Validaciones realizadas:
 
-- USE_VERCEL_KV
-
-Variables reservadas para etapas posteriores:
-
-- NEXT_PUBLIC_WORKER_URL
-- GUEST_PUBLIC_URL
-
-Estado:
-
-✅ COMPLETADO
+- ✅ `pnpm dev`
+- ✅ Prisma
+- ✅ PostgreSQL
 
 ---
 
-# Hito A3 — Arranque del Proyecto ✅
+# Hito 2 - Integración de PartyServer
+## Estado: ✅ COMPLETADO
 
-## Objetivo
+### Objetivo
 
-Conseguir que el proyecto original iniciara correctamente.
+Sustituir la creación de salas mediante PartyKit por PartyServer utilizando Durable Objects.
 
-## Resultado
+### Logros
 
-Next.js inicia correctamente.
+- Se añadió `wrangler.jsonc`.
+- Se añadió el Worker local.
+- Se configuró Durable Objects.
+- Se validó el endpoint:
 
-Resultado observado:
+```
+POST /party/{hash}
+```
 
-- Servidor iniciado.
-- Página principal accesible.
-- Compilación correcta.
+- Se comprobó que el Worker inicializa correctamente una sala.
+- Se comprobó almacenamiento en Durable Objects.
+- Se mantuvo el contrato HTTP utilizado por la aplicación.
 
-Estado:
+Validaciones realizadas:
 
-✅ COMPLETADO
-
----
-
-# Hito A4 — Recuperación de Prisma ✅
-
-## Objetivo
-
-Restaurar Prisma Client.
-
-## Problema encontrado
-
-Windows mantenía bloqueado el motor de Prisma.
-
-Error:
-
-EPERM
-
-Durante:
-
-prisma generate
-
-## Solución
-
-- detener procesos Node
-- regenerar Prisma Client
-
-Resultado:
-
-✔ Prisma Client generado correctamente.
-
-Estado:
-
-✅ COMPLETADO
+- ✅ Wrangler local
+- ✅ Worker
+- ✅ Durable Objects
+- ✅ POST manual mediante `curl.exe`
 
 ---
 
-# Hito A5 — Base de Datos Operativa ✅
+# Hito 3 - Flujo Crear Party
+## Estado: ✅ COMPLETADO
 
-## Objetivo
+### Flujo validado
 
-Comprobar que la aplicación podía comunicarse con PostgreSQL.
-
-## Resultado
-
-Prisma ejecutó correctamente:
-
-- BEGIN
-- INSERT INTO Party
-- UPDATE Party
-- COMMIT
-
-Se creó correctamente un registro Party.
-
-Estado:
-
-✅ COMPLETADO
-
----
-
-# Hito A6 — Primer Flujo Funcional ✅
-
-## Objetivo
-
-Verificar el flujo completo hasta la creación de una Party.
-
-## Flujo alcanzado
-
-Usuario
-
-↓
-
+```
 Next.js
 
 ↓
@@ -183,89 +97,122 @@ Prisma
 
 ↓
 
-PostgreSQL
+PartyServer
 
 ↓
 
-PartyKit
+Durable Object
 
-## Resultado
+↓
 
-La Party se crea correctamente en la base de datos.
+Player
+```
 
-El flujo únicamente falla al intentar comunicarse con PartyKit.
+### Logros
 
-Error observado:
+- Se crea correctamente el registro en Prisma.
+- Se genera el hash.
+- Se inicializa la sala en PartyServer.
+- El Worker responde correctamente.
+- La aplicación navega automáticamente al Player.
+- Se eliminó la dependencia de PartyKit para este flujo.
 
-tRPC failed on party.create
+Validaciones realizadas
 
-fetch failed
-
-Conclusión:
-
-Toda la aplicación funciona hasta el punto donde comienza la comunicación con PartyKit.
-
-Estado:
-
-✅ COMPLETADO
-
----
-
-# Estado Actual
-
-## Infraestructura funcionando
-
-✅ Next.js
-
-✅ React
-
-✅ tRPC
-
-✅ Prisma
-
-✅ PostgreSQL
-
-✅ Variables de entorno
+- ✅ Crear Party
+- ✅ Entrada al Player
 
 ---
 
-## Infraestructura pendiente
+# Hito 4 - Restauración del flujo local
+## Estado: ✅ COMPLETADO
 
-⬜ PartyKit
+### Objetivo
 
-⬜ PartyServer
+Recuperar el comportamiento utilizado por Rockomix Producción durante el desarrollo local.
 
-⬜ Cloudflare Worker
+### Logros
 
-⬜ Durable Objects
+- Restauración de `cache.ts`.
+- Se respetó la variable:
 
----
+```
+USE_VERCEL_KV=false
+```
 
-# Próximo Hito
+- El desarrollo local ya no depende de Vercel KV.
+- Se recuperó el comportamiento utilizado en Producción.
 
-## Hito B1 — Diagnóstico de PartyKit
+Validaciones realizadas
 
-Objetivo:
-
-Identificar exactamente dónde comienza la comunicación con PartyKit.
-
-Determinar:
-
-- qué función realiza el primer fetch
-- qué endpoint intenta utilizar
-- qué información espera recibir
-- qué deberá sustituirse por PartyServer
-
-Sin modificar todavía el comportamiento de la aplicación.
+- ✅ Búsqueda de canciones
+- ✅ Resultados visibles en el Player
 
 ---
 
-# Objetivo Final
+# Hito 5 - Funcionalidades pendientes
+## Estado: 🟡 EN PROGRESO
 
-Conseguir que Rockomix mantenga el comportamiento funcional de MyKaraoke Original utilizando infraestructura oficial PartyServer / Cloudflare 2026, incorporando posteriormente las mejoras propias de Rockomix:
+### Pendientes inmediatos
 
-- Branding
-- Host
-- Co-host
-- Mejoras UX
-- Funciones adicionales
+- Agregar canción a la playlist.
+- Sincronización Host.
+- Sincronización Invitado.
+- Broadcast de cambios.
+- QR apuntando a URL pública.
+- Bootstrap para invitados.
+
+---
+
+# Prioridad de referencias
+
+## Infraestructura
+
+Fuente principal:
+
+- PartyServer oficial 2026.
+
+Utilizar únicamente para:
+
+- Durable Objects.
+- Worker.
+- WebSockets.
+- Storage.
+- Broadcast.
+- Ciclo de vida.
+
+---
+
+## Lógica de aplicación
+
+Fuente principal:
+
+- Rockomix Producción.
+
+Utilizar para:
+
+- Playlist.
+- Roles.
+- QR.
+- Bootstrap.
+- Invitados.
+- Caché.
+- Flujo funcional.
+
+---
+
+## Estado actual
+
+Infraestructura:
+
+- ✅ Estable.
+
+Aplicación:
+
+- 🟡 En recuperación funcional.
+
+Siguiente objetivo:
+
+```
+Agregar canciones a la playlist utilizando PartyServer como backend de sincronización.
+```
