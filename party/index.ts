@@ -1,7 +1,36 @@
+/**
+ * ⚠️ ARCHIVO DE REFERENCIA - NO ES EL RUNTIME ACTIVO
+ *
+ * Este archivo pertenece a la implementación original basada en PartyKit.
+ *
+ * El runtime oficial de la aplicación se encuentra en:
+ *
+ *     /worker.ts
+ *
+ * Durante la migración a PartyServer/Cloudflare Worker, este archivo se
+ * conserva únicamente como referencia para recuperar lógica funcional de
+ * producción (Fair Queue, roles, ownership, etc.).
+ *
+ * IMPORTANTE:
+ * - No implementar nuevas funcionalidades aquí.
+ * - No corregir bugs aquí.
+ * - Toda modificación funcional debe realizarse en worker.ts.
+ *
+ * Si buscas el procesamiento real de:
+ * - add-video
+ * - remove-video
+ * - mark-as-played
+ * - horn
+ *
+ * debes revisar worker.ts.
+ */
+
 import type { Video } from "@prisma/client";
 import type * as Party from "partykit/server";
 import { z } from "zod";
 import { orderByFairness } from "~/utils/array";
+
+console.log("🔥 PARTY/INDEX EJECUTÁNDOSE 🔥");
 
 const EXPIRY_PERIOD_MILLISECONDS = 30 * 24 * 60 * 60 * 1000; // 30 days
 

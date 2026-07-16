@@ -1,3 +1,21 @@
+/**
+ * ⚠️ ARCHIVO DE REFERENCIA (PartyKit)
+ *
+ * Este archivo conserva la implementación original basada en PartyKit y se
+ * utiliza únicamente como referencia para recuperar comportamiento funcional
+ * durante la migración a PartyServer.
+ *
+ * El procesamiento actual de mensajes se realiza en worker.ts.
+ *
+ * NOTA:
+ * La migración a PartyServer aún no se considera cerrada; worker.ts sigue
+ * evolucionando hasta alcanzar paridad funcional con producción.
+ *
+ * No implementar nuevas funcionalidades en este archivo.
+ * Cualquier recuperación de lógica debe realizarse en worker.ts tomando este
+ * archivo como referencia.
+ */
+
 import { Server } from "../partykit-2026/packages/partyserver/src/index";
 import type { Connection, WSMessage } from "../partykit-2026/packages/partyserver/src/index";
 import { z } from "zod";
