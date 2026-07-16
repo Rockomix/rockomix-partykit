@@ -6,6 +6,7 @@ import { PartyScene } from "./party-scene";
 
 type Props = {
   params: { hash: string };
+  searchParams?: { sessionId?: string };
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -22,8 +23,9 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
-export default async function PartyHashPage({ params }: Props) {
+export default async function PartyHashPage({ params, searchParams }: Props) {
   const partyHash = params.hash;
+  const sessionId = searchParams?.sessionId;
 
   const party = await api.party.getByHash({ hash: partyHash });
 
@@ -32,7 +34,7 @@ export default async function PartyHashPage({ params }: Props) {
   }
 
   const req = await fetch(
-    `${env.NEXT_PUBLIC_PARTYKIT_URL}/party/${partyHash}`,
+    `${env.NEXT_PUBLIC_PARTYKIT_URL}/party/${partyHash}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`,
     {
       method: "GET",
       next: {

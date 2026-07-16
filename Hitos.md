@@ -278,3 +278,31 @@ HITO UI V2 - PLAYER COMPLETADO
 
 Pendiente:
 □ Corregir la identidad del usuario que agrega canciones (HOST / COHOST / GUEST) reutilizando la implementación existente en rockomix-production.
+
+
+HITO ARQ V1 - Infraestructura base del registro de participantes
+
+✅ Implementado
+
+Persistencia de sessionId.
+Creación de participantRegistry.
+Registro y consulta de participantes.
+Separación entre estado de participantes y playlist.
+Sin modificar la arquitectura de PartyServer.
+
+⚠️ Nota
+
+El registro de participantes durante la carga de la sala (room loading) queda aprobado únicamente como bootstrap temporal.
+
+No representa todavía el ciclo de vida definitivo del sistema de roles.
+
+Será reevaluado cuando se recupere:
+
+resolveRole
+roleState
+HOST / COHOST / GUEST
+Recuperación de sesión
+Ownership
+Identidad del solicitante (singerName)
+
+Estado: ✅ Aprobado como infraestructura base.

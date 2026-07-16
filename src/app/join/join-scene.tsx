@@ -30,6 +30,10 @@ export default function JoinScene({ partyHash }: { partyHash?: string }) {
     key: "name",
     defaultValue: "",
   });
+  const [sessionId, setSessionId] = useLocalStorage({
+    key: "sessionId",
+    defaultValue: "",
+  });
 
   // 1. Define your form.
   const form = useForm<z.infer<typeof formSchema>>({
@@ -47,8 +51,10 @@ export default function JoinScene({ partyHash }: { partyHash?: string }) {
     console.log(values);
 
     setName(values.name);
+    const nextSessionId = sessionId || crypto.randomUUID();
+    setSessionId(nextSessionId);
 
-    router.push(`/party/${partyHash}`);
+    router.push(`/party/${partyHash}?sessionId=${nextSessionId}`);
   }
 
   useEffect(() => {

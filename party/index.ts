@@ -49,14 +49,31 @@ export type KaraokeParty = {
 	settings: KaraokePartySettings;
 };
 
+export type Participant = {
+	sessionId: string;
+	displayName?: string;
+	connectionId?: string;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ParticipantRegistry = Record<string, Participant>;
+
+const PARTICIPANT_REGISTRY_KEY = "participantRegistry";
+
 export default class Server implements Party.Server {
 	karaokeParty: KaraokeParty | undefined;
+	participantRegistry: ParticipantRegistry | undefined;
 
 	constructor(readonly room: Party.Room) {}
 
 	async onStart() {
 		this.karaokeParty =
 			await this.room.storage.get<KaraokeParty>("karaokeParty");
+		this.participantRegistry =
+			(await this.room.storage.get<ParticipantRegistry>(
+				PARTICIPANT_REGISTRY_KEY,
+			)) ?? {};
 	}
 
 	async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
@@ -164,6 +181,10 @@ export default class Server implements Party.Server {
 	}
 
 	async onRequest(req: Party.Request) {
+		const url = new URL(req.url);
+		const sessionId = url.searchParams.get("sessionId");
+		const displayName = url.searchParams.get("name") ?? undefined;
+
 		if (req.method === "POST" && !this.karaokeParty) {
 			console.log("Creating new karaoke party");
 
@@ -175,6 +196,10 @@ export default class Server implements Party.Server {
 			};
 
 			await this.savekaraokeParty();
+		}
+
+		if (sessionId) {
+			await this.registerParticipant(sessionId, displayName);
 		}
 
 		if (this.karaokeParty) {
@@ -194,6 +219,32 @@ export default class Server implements Party.Server {
 				this.karaokeParty,
 			);
 		}
+	}
+
+	async registerParticipant(sessionId: string, displayName?: string) {
+		if (!this.participantRegistry) {
+			this.participantRegistry = {};
+		}
+
+		const now = new Date().toISOString();
+		const existing = this.participantRegistry[sessionId];
+
+		this.participantRegistry[sessionId] = {
+			sessionId,
+			displayName: displayName ?? existing?.displayName,
+			connectionId: existing?.connectionId,
+			createdAt: existing?.createdAt ?? now,
+			updatedAt: now,
+		};
+
+		await this.room.storage.put<ParticipantRegistry>(
+			PARTICIPANT_REGISTRY_KEY,
+			this.participantRegistry,
+		);
+	}
+
+	getParticipant(sessionId: string) {
+		return this.participantRegistry?.[sessionId] ?? null;
 	}
 
 	async onAlarm() {
