@@ -263,3 +263,18 @@ HITO UI V2 COMPLETADO
 ✓ Fuente central de identidad (src/constants/app.ts)
 ✓ Módulo de búsqueda unificado visualmente con Host (Desktop)
 ✓ Preparación del encabezado para futuras mejoras de UX
+
+===========================================================
+HITO UI V2 - PLAYER COMPLETADO
+===========================================================
+
+✓ Recuperada la lógica original del overlay dinámico desde producción.
+✓ Recuperados los umbrales de tamaño para título y cantante.
+✓ Recuperado el límite max-w-4xl del encabezado.
+✓ Mejorada la UX del buscador:
+    • Selección automática del texto al recibir foco.
+✓ Validado con títulos cortos, medios y largos.
+✓ Sin cambios en Worker, PartyServer o arquitectura.
+
+Pendiente:
+□ Corregir la identidad del usuario que agrega canciones (HOST / COHOST / GUEST) reutilizando la implementación existente en rockomix-production.
