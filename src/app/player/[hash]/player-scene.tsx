@@ -21,6 +21,9 @@ import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
 
+// Imports implementados por Kikekaraoke
+import { AUDIO } from "~/constants/audio";
+
 type Props = {
   party: Party;
   initialPlaylist: KaraokeParty;
@@ -31,7 +34,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     initialPlaylist.playlist ?? [],
   );
 
-  const [playHorn] = useSound("/sounds/buzzer.mp3");
+  const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
 
