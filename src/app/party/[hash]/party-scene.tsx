@@ -18,6 +18,7 @@ import {
 import { decode } from "html-entities";
 import { useRouter } from "next/navigation";
 import { esMX } from "~/locales/es-MX";
+import { AppTextBrand } from "~/components/app-text-brand";
 
 export function PartyScene({
   party,
@@ -101,14 +102,25 @@ export function PartyScene({
   return (
     <>
       <div className="container mx-auto p-6 pb-16 text-center">
-        <div>
-          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
-            {party.name}
-          </h1>
-        </div>
+        <div className="mx-auto flex w-full flex-col items-center gap-4 md:w-1/3 md:items-start md:gap-3">
+          <div className="flex items-center justify-center">
+            <AppTextBrand />
+          </div>
 
-        <div className="mt-5">
-          <SongSearch onVideoAdded={addSong} playlist={playlist} />
+          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
+            Fiesta de {party.name}
+          </h1>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-lg font-semibold text-white/90 md:justify-start">
+            <span>👋 ¡Hola, {name || party.name}!</span>
+            <span aria-hidden="true" className="opacity-50">
+              ·
+            </span>
+          </div>
+
+          <div className="w-full md:w-full">
+            <SongSearch onVideoAdded={addSong} playlist={playlist} />
+          </div>
         </div>
       </div>
 

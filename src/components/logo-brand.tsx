@@ -2,7 +2,7 @@ import Image from "next/image";
 import { cn } from "~/lib/utils";
 import logo from "~/assets/my-karaoke-party-logo.png";
 
-type LogoBrandSize = "lg" | "md" | "sm";
+type LogoBrandSize = "lg" | "md" | "sm" | "xs";
 
 type Props = {
   className?: string;
@@ -43,6 +43,14 @@ const sizeStyles: Record<
     width: 160,
     height: 90,
     labelClass: "text-[12px] sm:text-[13px]",
+    gapClass: "gap-1",
+    layoutClass: "flex-col items-center",
+  },
+  xs: {
+    imageClass: "max-w-[120px] sm:max-w-[140px]",
+    width: 100,
+    height: 60,
+    labelClass: "text-[10px]",
     gapClass: "gap-1",
     layoutClass: "flex-col items-center",
   },

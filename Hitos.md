@@ -238,3 +238,28 @@ Responsive
   en escritorio.
 
 ===========================================================
+
+===========================================================
+PENDIENTE TÉCNICO
+===========================================================
+
+□ Resolver definitivamente la URL pública para dispositivos móviles.
+
+Objetivo:
+
+- El QR debe funcionar tanto en desarrollo como en producción.
+- El móvil NO debe depender de localhost.
+- Mantener compatibilidad con Cloudflare Worker.
+- Evitar soluciones temporales o hacks.
+
+===========================================================
+HITO UI V2 COMPLETADO
+===========================================================
+
+✓ Internacionalización inicial (es-MX / en)
+✓ Encabezado renovado para Party (Invitado / COHOST)
+✓ Branding experimental exclusivo para Party
+✓ Nuevo componente AppTextBrand
+✓ Fuente central de identidad (src/constants/app.ts)
+✓ Módulo de búsqueda unificado visualmente con Host (Desktop)
+✓ Preparación del encabezado para futuras mejoras de UX
