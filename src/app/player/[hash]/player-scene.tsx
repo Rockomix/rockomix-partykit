@@ -20,6 +20,7 @@ import { SongSearch } from "~/components/song-search";
 import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
+import { esMX } from "~/locales/es-MX";
 
 // Imports implementados por Kikekaraoke
 import { AUDIO } from "~/constants/audio";
@@ -45,7 +46,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
     if (timeSinceLastHorn >= 5000) {
       // 5 seconds in milliseconds
-      toast.success("Someone sent a horn!");
+      toast.success(esMX.party.hornSent);
       playHorn();
       lastHornTimeRef.current = now;
     } else {

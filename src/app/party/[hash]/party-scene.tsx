@@ -17,6 +17,7 @@ import {
 } from "~/components/ui/ui/accordion";
 import { decode } from "html-entities";
 import { useRouter } from "next/navigation";
+import { esMX } from "~/locales/es-MX";
 
 export function PartyScene({
   party,
@@ -59,7 +60,7 @@ export function PartyScene({
         const eventData = JSON.parse(event.data);
 
         if (eventData.type === "horn") {
-          // toast.success("You sent a horn!");
+          // toast.success(esMX.party.hornSent);
           // playHorn(); // Play the horn sound
           // return;
         }
@@ -127,7 +128,7 @@ export function PartyScene({
             <AccordionTrigger disabled={nextVideos.length < 2}>
               <div className="flex flex-row">
                 <ListMusic className="mr-3" />
-                {nextVideo ? nextVideo.title : "Playlist is empty"}
+                {nextVideo ? nextVideo.title : esMX.party.playlistEmpty}
               </div>
             </AccordionTrigger>
             <AccordionContent>

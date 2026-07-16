@@ -11,6 +11,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "./ui/ui/button";
 import { MicVocal, SkipForward, Youtube } from "lucide-react";
 import { Spinner } from "./ui/ui/spinner";
+import { esMX } from "~/locales/es-MX";
 
 type Props = {
   joinPartyUrl: string;
@@ -126,15 +127,14 @@ export function Player({
 
         <div>
           <h3 className="mb-2 scroll-m-20 text-2xl font-semibold tracking-tight animate-in fade-in zoom-in">
-            This video cannot be embedded. Click the button to open a new tab in
-            YouTube.
+            {esMX.player.embedBlocked}
           </h3>
           <Button
             type="button"
             className="w-fit self-center animate-in fade-in zoom-in"
             onClick={() => openYouTubeTab()}
           >
-            Play in YouTube
+            {esMX.player.playInYouTube}
             <Youtube className="ml-2" />
           </Button>
           <div className="mt-2">
@@ -147,7 +147,7 @@ export function Player({
               }}
             >
               <SkipForward className="mr-2 h-5 w-5" />
-              Skip
+              {esMX.player.skip}
             </Button>
           </div>
         </div>
@@ -235,7 +235,7 @@ export function Player({
             }}
           >
             <SkipForward className="mr-2 h-5 w-5" />
-            Skip
+            {esMX.player.skip}
           </Button>
           {/* <a
             href={joinPartyUrl}

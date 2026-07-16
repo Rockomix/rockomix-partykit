@@ -6,6 +6,7 @@ import ReactCanvasConfetti from "react-canvas-confetti";
 import { api } from "~/trpc/react";
 import { Input } from "./ui/ui/input";
 import { ButtonHoverGradient } from "./ui/ui/button-hover-gradient";
+import { esMX } from "~/locales/es-MX";
 
 const canvasStyles = {
   position: "absolute",
@@ -87,7 +88,7 @@ export function CreateParty() {
         <Input
           name="name"
           type="text"
-          placeholder="My Awesome Party..."
+          placeholder={esMX.landing.partyNamePlaceholder ?? "My Awesome Party..."}
           value={name}
           onChange={(e) => setName(e.target.value)}
           minLength={3}
@@ -110,7 +111,9 @@ export function CreateParty() {
         </AnimatedGradientText> */}
 
         <ButtonHoverGradient type="submit" disabled={createParty.isPending}>
-          {createParty.isPending ? "Creating..." : "Start Party 🎉"}
+          {createParty.isPending
+            ? esMX.landing.creating ?? "Creating..."
+            : esMX.landing.startParty ?? "Start Party 🎉"}
         </ButtonHoverGradient>
 
         {/* <ShimmerButton className="shadow-2xl">
