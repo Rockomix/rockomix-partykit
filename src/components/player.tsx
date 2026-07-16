@@ -65,6 +65,21 @@ export function Player({
     },
   };
 
+  const totalHeaderLength =
+    decode(video.title).length + (video.singerName?.length ?? 0);
+  const titleSizeClass =
+    totalHeaderLength <= 30
+      ? "text-4xl lg:text-5xl"
+      : totalHeaderLength <= 80
+        ? "text-2xl lg:text-3xl"
+        : "text-xl lg:text-2xl";
+  const singerSizeClass =
+    totalHeaderLength <= 30
+      ? "text-3xl lg:text-4xl"
+      : totalHeaderLength <= 80
+        ? "text-xl lg:text-2xl"
+        : "text-lg lg:text-xl";
+
   const onPlayerReady: YouTubeProps["onReady"] = (event) => {
     console.log("Player ready", { event });
     // access to player in all event handlers via event.target
@@ -111,11 +126,21 @@ export function Player({
           isFullscreen && "bg-gradient"
         )}
       >
-        <div>
-          <h1 className="text-outline scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+        <div className="w-full max-w-4xl">
+          <h1
+            className={cn(
+              "text-outline scroll-m-20 max-w-4xl font-extrabold tracking-tight",
+              titleSizeClass
+            )}
+          >
             {decode(video.title)}
           </h1>
-          <h2 className="text-outline scroll-m-20 text-3xl font-bold tracking-tight lg:text-4xl">
+          <h2
+            className={cn(
+              "text-outline scroll-m-20 font-bold tracking-tight",
+              singerSizeClass
+            )}
+          >
             <MicVocal className="mr-2 inline text-primary" size={32} />
             {video.singerName}
             <MicVocal
@@ -198,10 +223,20 @@ export function Player({
             isReady ? "bg-opacity-80" : "bg-opacity-0"
           }`}
         >
-          <h1 className="text-outline scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          <h1
+            className={cn(
+              "text-outline scroll-m-20 max-w-4xl font-extrabold tracking-tight",
+              titleSizeClass
+            )}
+          >
             {decode(video.title)}
           </h1>
-          <h2 className="text-outline scroll-m-20 text-3xl font-bold tracking-tight lg:text-4xl">
+          <h2
+            className={cn(
+              "text-outline scroll-m-20 font-bold tracking-tight",
+              singerSizeClass
+            )}
+          >
             <MicVocal className="mr-2 inline text-primary" size={32} />
             {video.singerName}
             <MicVocal

@@ -49,6 +49,7 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
             setVideoInputValue(e.target.value);
             setCanFetch(e.target.value.length >= 3);
           }}
+          onFocus={(e) => e.currentTarget.select()}
           required
           minLength={3}
           autoComplete="off"
