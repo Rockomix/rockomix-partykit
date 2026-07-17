@@ -32,23 +32,21 @@ export function PartyScene({
   const [name] = useLocalStorage<string>({ key: "name" });
   const router = useRouter();
 
-
   const [playlist, setPlaylist] = useState<KaraokeParty["playlist"]>(
     initialPlaylist?.playlist ?? [],
   );
-
-  const hostName = readLocalStorageValue({
-    key: "name",
-    defaultValue: party.name,
-  });
+  const [hostName, setHostName] = useState(party.name);
 
   useEffect(() => {
     const value = readLocalStorageValue({ key: "name" });
 
     if (!value) {
       router.push(`/join/${party.hash}`);
+      return;
     }
-  }, [router, party.hash]);
+
+    setHostName(value);
+  }, [party.hash, party.name, router]);
 
   type ClientRole = "HOST" | "COHOST" | "INVITADO";
 

@@ -165,10 +165,6 @@ export class PartyRoom extends Server {
 	}
 
 	override async onMessage(connection: Connection, message: WSMessage) {
-		console.log("[B2] onMessage ENTER", {
-			messageType: typeof message,
-			message,
-		});
 
 		if (typeof message !== "string") {
 			return;
@@ -183,9 +179,6 @@ export class PartyRoom extends Server {
 		}
 
 		const result = MessageSchema.safeParse(parsed);
-		console.log("[B2] safeParse", {
-			success: result.success,
-		});
 
 		if (!result.success) {
 			return;
@@ -225,7 +218,6 @@ export class PartyRoom extends Server {
 						(video) => video.id === data.id && !video.playedAt,
 					)
 				) {
-					console.log("[B2] adding video", data.id);
 					this.karaokeParty.playlist.push({
 						id: data.id,
 						title: data.title,
@@ -238,13 +230,8 @@ export class PartyRoom extends Server {
 						duration: data.duration ?? undefined,
 					});
 
-				console.log("[B2] before storage");
 				await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-				console.log("[B2] after storage");
-
-				console.log("[B2] before broadcast");
 				this.broadcast(JSON.stringify(this.karaokeParty.playlist));
-				console.log("[B2] after broadcast");
 			}
 
 				return;

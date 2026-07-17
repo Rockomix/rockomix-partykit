@@ -31,10 +31,6 @@ export default function JoinScene({ partyHash }: { partyHash?: string }) {
     key: "name",
     defaultValue: "",
   });
-  const [sessionId, setSessionId] = useLocalStorage({
-    key: "sessionId",
-    defaultValue: "",
-  });
 
   // 1. Define your form.
   const form = useForm<z.infer<typeof formSchema>>({
@@ -47,20 +43,18 @@ export default function JoinScene({ partyHash }: { partyHash?: string }) {
 
   // 2. Define a submit handler.
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
-    console.log(values);
-
     setName(values.name);
-    const nextSessionId = sessionId || ensureSessionId();
-    setSessionId(nextSessionId);
 
-    router.push(`/party/${partyHash}?sessionId=${nextSessionId}`);
+    router.push(`/party/${partyHash}`);
   }
 
   useEffect(() => {
     form.setValue("name", name);
   }, [name, form]);
+
+  useEffect(() => {
+    ensureSessionId();
+  }, []);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center text-white">

@@ -306,3 +306,90 @@ Ownership
 Identidad del solicitante (singerName)
 
 Estado: ✅ Aprobado como infraestructura base.
+
+🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
+HITO ARQ V2 - Recuperación del sistema de identidad y roles de producción
+✅ Implementado
+Recuperación del flujo real utilizado por producción.
+Eliminación de sessionId como parámetro de navegación.
+Recuperación de ensureSessionId() como fuente de identidad del navegador.
+Persistencia de sessionId exclusivamente en localStorage.
+Recuperación automática de identidad al volver a ingresar a la sala.
+Recuperación automática del COHOST utilizando el mismo sessionId.
+Restauración del flujo correcto:
+Crear Party
+ensureSessionId()
+localStorage
+PartyScene
+Worker
+resolveRole()
+Separación entre identidad del navegador y navegación.
+Sin modificar la arquitectura de PartyServer.
+Validado
+
+✅ HOST
+
+✅ COHOST
+
+✅ INVITADO
+
+✅ Recuperación del COHOST
+
+✅ Recuperación de sesión
+
+✅ Roles equivalentes a producción
+
+Estado
+
+✅ Aprobado.
+
+La arquitectura de identidad y recuperación de roles queda restaurada conforme al comportamiento validado de producción.
+
+HITO ARQ V3 - Recuperación del comportamiento de producción y estabilidad SSR
+✅ Implementado
+Eliminación definitiva de sessionId en la URL de navegación.
+Recuperación del flujo de navegación utilizado por producción.
+Corrección del error de hidratación (SSR Hydration Error) en PartyScene.
+Separación correcta entre:
+nombre de la sala (party.name)
+nombre del usuario (localStorage["name"])
+Recuperación del comportamiento visual validado de producción.
+Conservación del comportamiento de:
+PartyServer
+Worker
+Roles
+Playlist
+Atribución de canciones
+Recuperación de sesión
+Eliminación de código temporal y logs de depuración utilizados durante la migración.
+Validado
+
+✅ Sin Hydration Error.
+
+✅ Nombre correcto de la sala.
+
+✅ Nombre correcto del usuario.
+
+✅ Nombre correcto del cantante.
+
+✅ Atribución correcta de canciones.
+
+✅ Recuperación del COHOST.
+
+✅ Recuperación de sessionId.
+
+✅ Sin sessionId en la URL.
+
+✅ Comportamiento equivalente a producción.
+
+Estado
+
+✅ Aprobado.
+
+La migración recupera el comportamiento funcional de producción bajo PartyServer, manteniendo la arquitectura actual y garantizando compatibilidad con SSR sin romper el sistema de roles.
+
+
+🎉 ARQ V1 → Construimos la infraestructura (participantRegistry, sessionId, base de participantes).
+ARQ V2 → Recuperamos la identidad y el ciclo de vida de los roles exactamente como en producción.
+ARQ V3 → Recuperamos el comportamiento visual y de SSR, dejando la migración estable y funcional sobre PartyServer. 🎉
+🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
