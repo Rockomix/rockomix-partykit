@@ -38,6 +38,10 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
+  const hostName = readLocalStorageValue({
+    key: "name",
+    defaultValue: party.name,
+  });
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -139,9 +143,13 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     <div className="flex h-screen w-full flex-row flex-nowrap">
       <div className="grow-0 basis-1/3 overflow-y-auto border-r border-slate-500 px-4">
         <div className="py-4 text-center">
-          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
-            {party.name}
+          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl uppercase text-white">
+            {hostName?.toUpperCase()}
           </h1>
+          <div className="mt-1 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-white">
+            <span className="text-emerald-400">🟢</span>
+            <span>HOST</span>
+          </div>
         </div>
         <SongSearch
           key={party.hash}

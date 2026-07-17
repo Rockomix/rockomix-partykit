@@ -15,6 +15,7 @@ import {
 import { Input } from "~/components/ui/ui/input";
 import { ButtonHoverGradient } from "~/components/ui/ui/button-hover-gradient";
 import { useEffect } from "react";
+import { ensureSessionId } from "~/lib/session";
 import { esMX } from "~/locales/es-MX";
 import { LogoBrand } from "~/components/logo-brand";
 
@@ -51,7 +52,7 @@ export default function JoinScene({ partyHash }: { partyHash?: string }) {
     console.log(values);
 
     setName(values.name);
-    const nextSessionId = sessionId || crypto.randomUUID();
+    const nextSessionId = sessionId || ensureSessionId();
     setSessionId(nextSessionId);
 
     router.push(`/party/${partyHash}?sessionId=${nextSessionId}`);

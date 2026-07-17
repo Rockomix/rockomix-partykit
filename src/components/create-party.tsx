@@ -6,6 +6,7 @@ import ReactCanvasConfetti from "react-canvas-confetti";
 import { api } from "~/trpc/react";
 import { Input } from "./ui/ui/input";
 import { ButtonHoverGradient } from "./ui/ui/button-hover-gradient";
+import { ensureSessionId, setNameLocal } from "~/lib/session";
 import { esMX } from "~/locales/es-MX";
 
 const canvasStyles = {
@@ -32,6 +33,14 @@ export function CreateParty() {
   const createParty = api.party.create.useMutation({
     onSuccess: (party) => {
       fire(); // Trigger the confetti animation
+
+      // Persist the same client state that Join would set (`name` and `sessionId`)
+      try {
+        setNameLocal(name);
+        ensureSessionId();
+      } catch {
+        // best-effort
+      }
 
       // Redirect to the party page
       setTimeout(() => {

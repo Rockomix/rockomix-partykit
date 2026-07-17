@@ -3,12 +3,14 @@
 
 import type { Party } from "@prisma/client";
 import type { Message, KaraokeParty } from "party";
-import usePartySocket from "partysocket/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { env } from "~/env";
 import { readLocalStorageValue, useLocalStorage } from "@mantine/hooks";
 import { SongSearch } from "~/components/song-search";
-import { ListMusic, Megaphone } from "lucide-react";
+import { ListMusic, Megaphone, Pause, Play, SkipForward } from "lucide-react";
+import { toast } from "sonner";
+import usePartySocket from "partysocket/react";
+import { ensureSessionId } from "~/lib/session";
 import {
   Accordion,
   AccordionContent,
@@ -35,6 +37,11 @@ export function PartyScene({
     initialPlaylist?.playlist ?? [],
   );
 
+  const hostName = readLocalStorageValue({
+    key: "name",
+    defaultValue: party.name,
+  });
+
   useEffect(() => {
     const value = readLocalStorageValue({ key: "name" });
 
@@ -43,30 +50,35 @@ export function PartyScene({
     }
   }, [router, party.hash]);
 
+  type ClientRole = "HOST" | "COHOST" | "INVITADO";
+
+  const [role, setRole] = useState<ClientRole>("INVITADO");
+
   const socket = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_URL,
     room: party.hash ?? "",
-    // onOpen(_event) {
-    //   if (name) {
-    //     socket.send(
-    //       JSON.stringify({
-    //         type: "join",
-    //         name,
-    //       }),
-    //     );
-    //   }
-    // },
+    query: {
+      role: "guest",
+      sessionId: ensureSessionId(),
+    },
     onMessage(event) {
       try {
         const eventData = JSON.parse(event.data);
 
-        if (eventData.type === "horn") {
-          // toast.success(esMX.party.hornSent);
-          // playHorn(); // Play the horn sound
-          // return;
+        if (eventData.type === "role-assigned") {
+          setRole(eventData.role);
+
+          if (eventData.role === "COHOST" && eventData.message) {
+            toast.success(eventData.message);
+          }
+
+          return;
         }
 
-        // If it's an array, it's the playlist update
+        if (eventData.type === "horn") {
+          return;
+        }
+
         if (Array.isArray(eventData)) {
           setPlaylist(eventData);
         }
@@ -92,9 +104,9 @@ export function PartyScene({
     socket.send(
       JSON.stringify({
         type: "horn",
-      } satisfies Message)
+      } satisfies Message),
     );
-  }
+  };
 
   const nextVideos = playlist.filter((video) => !video.playedAt);
   const nextVideo = nextVideos[0] ?? null;
@@ -111,12 +123,19 @@ export function PartyScene({
             Fiesta de {party.name}
           </h1>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-lg font-semibold text-white/90 md:justify-start">
-            <span>👋 ¡Hola, {name || party.name}!</span>
-            <span aria-hidden="true" className="opacity-50">
-              ·
-            </span>
+          <div className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white/90 md:justify-start">
+            <span>👋 ¡Hola, {hostName}!</span>
+            {role === "INVITADO" ? (
+              <span className="text-white">🙂</span>
+            ) : null}
           </div>
+
+          {role === "COHOST" ? (
+            <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 md:justify-start">
+              <span className="text-emerald-400">🟢</span>
+              <span>CO HOST</span>
+            </div>
+          ) : null}
 
           <div className="w-full md:w-full">
             <SongSearch onVideoAdded={addSong} playlist={playlist} />
@@ -133,6 +152,25 @@ export function PartyScene({
           <Megaphone size={32} />
         </button>
       </div>
+
+      {role === "COHOST" && (
+        <div className="fixed bottom-28 left-1/2 z-[100] -translate-x-1/2">
+          <div className="flex gap-2 rounded-full bg-black/70 p-2 shadow-xl backdrop-blur">
+            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "play" } as Message)}>
+              <Play className="mr-2 h-4 w-4" />
+              Reproducir
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "pause" } as Message)}>
+              <Pause className="mr-2 h-4 w-4" />
+              Pausar
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "mark-as-played", id: nextVideo?.id ?? "" } as Message)} disabled={!nextVideo}>
+              <SkipForward className="mr-2 h-4 w-4" />
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="fixed bottom-0 z-50 flex flex-col w-full items-center bg-primary p-2 text-primary-foreground text-white">
         <Accordion type="single" collapsible className="max-h-screen w-full">
