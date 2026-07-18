@@ -464,3 +464,44 @@ No se modificó Worker, PartyServer, Roles, Permissions, sessionId, Skip ni la l
 Se mantuvo la arquitectura validada en los hitos anteriores.
 
 Estado: ✅ Implementado. Pendiente validación funcional en entorno online (Vercel + Cloudflare).
+
+
+HITO ARQ V4 - PartyServer desacoplado y validado
+Objetivo
+
+Eliminar la dependencia local hacia:
+
+../partykit-2026/
+
+dejando el proyecto completamente portable para compilación local y despliegue en Vercel.
+
+Cambios realizados
+Se reemplazó el import local de PartyServer por la dependencia oficial publicada en npm.
+Se agregó partyserver@0.5.8 como dependencia del proyecto.
+Se actualizó package.json y pnpm-lock.yaml.
+Se mantuvo intacta la arquitectura basada en:
+Cloudflare Workers
+PartyServer
+Durable Objects
+Roles
+SessionId
+Participant Registry
+Se recuperó el funcionamiento de Play y Pausa mediante el puente imperativo del Player.
+Se restauró el funcionamiento del botón Skip del Player sin regresar a la implementación antigua de WebSocket.
+Validaciones realizadas
+
+Pruebas locales exitosas:
+
+✅ Worker inicia correctamente.
+✅ Next.js inicia correctamente.
+✅ HOST funciona.
+✅ CO HOST funciona.
+✅ INVITADO funciona.
+✅ Agregar canciones.
+✅ Bocina.
+✅ Play.
+✅ Pausa.
+✅ Skip.
+✅ Sin dependencia del directorio partykit-2026.
+Pendientes conocidos
+Revisar en una siguiente etapa si query.role continúa siendo necesario o puede eliminarse dejando que resolveRole() determine completamente los permisos mediante sessionId.

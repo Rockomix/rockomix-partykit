@@ -60,6 +60,9 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const socket = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_URL,
     room: party.hash ?? "",
+    query: {
+      role: "host",
+    },
     onMessage(event) {
       // TODO: Improve type safety
       const eventData = JSON.parse(event.data);
@@ -114,16 +117,20 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     );
   };
 
+  const sendSocketMessage = (message: Message) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    socket.send(JSON.stringify(message));
+  };
+
   const markAsPlayed = () => {
     if (currentVideo) {
-      // setShowOpenInYouTubeButton(false);
-
-      socket.send(
-        JSON.stringify({
-          type: "mark-as-played",
-          id: currentVideo.id,
-        } satisfies Message),
-      );
+      sendSocketMessage({
+        type: "mark-as-played",
+        id: currentVideo.id,
+      } satisfies Message);
     }
   };
 

@@ -16,12 +16,12 @@
  * archivo como referencia.
  */
 
-import { Server } from "../partykit-2026/packages/partyserver/src/index";
+import { Server } from "partyserver";
 import type {
   Connection,
   ConnectionContext,
   WSMessage,
-} from "../partykit-2026/packages/partyserver/src/index";
+} from "partyserver";
 import { z } from "zod";
 
 import { ClientRole, RequestedRole, resolveRole } from "./party/roles";
