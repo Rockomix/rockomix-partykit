@@ -389,9 +389,13 @@ Estado
 La migración recupera el comportamiento funcional de producción bajo PartyServer, manteniendo la arquitectura actual y garantizando compatibilidad con SSR sin romper el sistema de roles.
 
 
-🎉 ARQ V1 → Construimos la infraestructura (participantRegistry, sessionId, base de participantes).
-ARQ V2 → Recuperamos la identidad y el ciclo de vida de los roles exactamente como en producción.
-ARQ V3 → Recuperamos el comportamiento visual y de SSR, dejando la migración estable y funcional sobre PartyServer. 🎉
+🎉
+✅ ARQ V1 → Construimos la infraestructura (participantRegistry, sessionId, base de participantes).
+✅ ARQ V2 → Recuperamos la identidad y el ciclo de vida de los roles exactamente como en producción.
+✅ ARQ V3 → Recuperamos el comportamiento visual y de SSR, dejando la migración estable y funcional sobre PartyServer.
+✅ ARQ V4 (validación Play/Pausa/Skip)
+✅ ARQ V5 (recuperación del puente PlayerScene → Player) 🎉
+
 🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
 HITO UI V1 - Interfaz y permisos del COHOST
 Objetivo
