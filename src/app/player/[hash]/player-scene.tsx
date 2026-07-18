@@ -15,7 +15,7 @@ import { useState, useRef } from "react";
 import { toast } from "sonner";
 import useSound from "use-sound";
 import { EmptyPlayer } from "~/components/empty-player";
-import { Player } from "~/components/player";
+import { Player, type PlayerActions } from "~/components/player";
 import { SongSearch } from "~/components/song-search";
 import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
@@ -38,6 +38,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
+  const playerActionsRef = useRef<PlayerActions>(null);
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -66,6 +67,14 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
       if (eventData.type === "horn") {
         playThrottledHorn();
+      }
+
+      if (eventData.type === "play") {
+        playerActionsRef.current?.play();
+      }
+
+      if (eventData.type === "pause") {
+        playerActionsRef.current?.pause();
       }
 
       if (Array.isArray(eventData)) {
@@ -166,6 +175,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
             </Button>
             {currentVideo ? (
               <Player
+                ref={playerActionsRef}
                 key={currentVideo.id}
                 video={currentVideo}
                 joinPartyUrl={joinPartyUrl}

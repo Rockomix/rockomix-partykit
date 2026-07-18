@@ -22,6 +22,24 @@ import { useRouter } from "next/navigation";
 import { esMX } from "~/locales/es-MX";
 import { AppTextBrand } from "~/components/app-text-brand";
 
+function getTitleSizeClass(title: string) {
+  const length = title.trim().length;
+
+  if (length <= 14) {
+    return "text-2xl sm:text-2xl lg:text-3xl";
+  }
+
+  if (length <= 20) {
+    return "text-xl sm:text-2xl lg:text-3xl";
+  }
+
+  if (length <= 28) {
+    return "text-lg sm:text-xl lg:text-2xl";
+  }
+
+  return "text-base sm:text-lg lg:text-xl";
+}
+
 export function PartyScene({
   party,
   initialPlaylist,
@@ -86,24 +104,41 @@ export function PartyScene({
     },
   });
 
+  const sendSocketMessage = (message: Message) => {
+    socket.send(JSON.stringify(message));
+  };
+
   const addSong = async (videoId: string, title: string, coverUrl: string) => {
-    socket.send(
-      JSON.stringify({
-        type: "add-video",
-        id: videoId,
-        title,
-        singerName: name,
-        coverUrl,
-      } satisfies Message),
-    );
+    sendSocketMessage({
+      type: "add-video",
+      id: videoId,
+      title,
+      singerName: name,
+      coverUrl,
+    } satisfies Message);
   };
 
   const sendHorn = async () => {
-    socket.send(
-      JSON.stringify({
-        type: "horn",
-      } satisfies Message),
-    );
+    sendSocketMessage({
+      type: "horn",
+    } satisfies Message);
+  };
+
+  const sendPlay = () => {
+    sendSocketMessage({ type: "play" } as Message);
+  };
+
+  const sendPause = () => {
+    sendSocketMessage({ type: "pause" } as Message);
+  };
+
+  const sendSkip = () => {
+    if (!nextVideo) return;
+
+    sendSocketMessage({
+      type: "mark-as-played",
+      id: nextVideo.id,
+    } satisfies Message);
   };
 
   const nextVideos = playlist.filter((video) => !video.playedAt);
@@ -117,23 +152,23 @@ export function PartyScene({
             <AppTextBrand />
           </div>
 
-          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
+          <h1
+            className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
+          >
             Fiesta de {party.name}
           </h1>
 
           <div className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white/90 md:justify-start">
             <span>👋 ¡Hola, {hostName}!</span>
-            {role === "INVITADO" ? (
+            {role === "COHOST" ? (
+              <span className="inline-flex items-center gap-2 text-lg font-semibold text-white/90">
+                <span className="text-emerald-400">🟢</span>
+                <span>CO HOST</span>
+              </span>
+            ) : role === "INVITADO" ? (
               <span className="text-white">🙂</span>
             ) : null}
           </div>
-
-          {role === "COHOST" ? (
-            <div className="mt-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400 md:justify-start">
-              <span className="text-emerald-400">🟢</span>
-              <span>CO HOST</span>
-            </div>
-          ) : null}
 
           <div className="w-full md:w-full">
             <SongSearch onVideoAdded={addSong} playlist={playlist} />
@@ -141,34 +176,39 @@ export function PartyScene({
         </div>
       </div>
 
-      <div className="fixed bottom-16 left-1/2 transform -translate-x-1/2 z-[100]">
-        <button
-          type="button"
-          className="rounded-full bg-yellow-200 p-2 text-black hover:text-white hover:bg-red-700 shadow-lg"
-          onClick={sendHorn}
-        >
-          <Megaphone size={32} />
-        </button>
-      </div>
+      <div className="fixed bottom-16 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-8 rounded-full bg-black/70 p-3 shadow-xl backdrop-blur">
+        <div className="flex items-center">
+          <button
+            type="button"
+            className="rounded-full bg-yellow-200 p-2 text-black shadow-lg hover:bg-red-700 hover:text-white"
+            onClick={sendHorn}
+          >
+            <Megaphone size={32} />
+          </button>
+        </div>
 
-      {role === "COHOST" && (
-        <div className="fixed bottom-28 left-1/2 z-[100] -translate-x-1/2">
-          <div className="flex gap-2 rounded-full bg-black/70 p-2 shadow-xl backdrop-blur">
-            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "play" } as Message)}>
+        {role === "COHOST" && (
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn btn-secondary" onClick={sendPlay}>
               <Play className="mr-2 h-4 w-4" />
-              Reproducir
+              Play
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "pause" } as Message)}>
+            <button type="button" className="btn btn-secondary" onClick={sendPause}>
               <Pause className="mr-2 h-4 w-4" />
-              Pausar
+              Pausa
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => sendSocketMessage({ type: "mark-as-played", id: nextVideo?.id ?? "" } as Message)} disabled={!nextVideo}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={sendSkip}
+              disabled={!nextVideo}
+            >
               <SkipForward className="mr-2 h-4 w-4" />
-              Skip
+              Siguiente
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="fixed bottom-0 z-50 flex flex-col w-full items-center bg-primary p-2 text-primary-foreground text-white">
         <Accordion type="single" collapsible className="max-h-screen w-full">

@@ -393,3 +393,57 @@ La migración recupera el comportamiento funcional de producción bajo PartyServ
 ARQ V2 → Recuperamos la identidad y el ciclo de vida de los roles exactamente como en producción.
 ARQ V3 → Recuperamos el comportamiento visual y de SSR, dejando la migración estable y funcional sobre PartyServer. 🎉
 🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
+HITO UI V1 - Interfaz y permisos del COHOST
+Objetivo
+
+Recuperar completamente la experiencia visual y funcional del COHOST existente en producción, manteniendo la arquitectura ya validada de PartyServer.
+
+Alcance
+UI
+Recuperar la interfaz específica del COHOST.
+Mostrar correctamente los controles según el rol asignado.
+Ocultar controles exclusivos del HOST.
+Mantener la interfaz del INVITADO sin privilegios.
+Funcionalidad
+
+Validar que el COHOST pueda:
+
+▶️ Reproducir.
+⏸️ Pausar.
+⏭️ Skip.
+📢 Bocina (si aplica según producción).
+Restricciones
+No modificar resolveRole.
+No modificar roleState.
+No modificar sessionId.
+No modificar la arquitectura de PartyServer.
+No iniciar limpieza TypeScript (ARQ V4).
+Criterio de aceptación
+
+El COHOST debe comportarse exactamente igual que en producción, tanto visual como funcionalmente.
+
+El orden que seguiría
+✅ Commit de ARQ V3.
+✅ Push.
+✅ Crear rama (si acostumbras trabajar por hito, o seguir en la misma feature si así manejas el proyecto).
+🚀 Empezar HITO UI V1.
+🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
+
+HITO ARQ V4 - Validación del flujo de controles de reproducción
+
+✅ Validado
+
+Se comparó producción contra migración.
+Se verificó el recorrido completo:
+Botón
+Handler
+sendSocketMessage
+WebSocket
+Worker
+Permisos
+Broadcast
+No se encontraron diferencias funcionales.
+No fue necesario recuperar lógica.
+No se realizaron cambios.
+
+Estado: ✅ Aprobado.
