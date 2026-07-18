@@ -447,3 +447,16 @@ No fue necesario recuperar lógica.
 No se realizaron cambios.
 
 Estado: ✅ Aprobado.
+
+🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥
+HITO ARQ V5 – Recuperación del puente PlayerScene → Player
+
+✅ Implementado
+
+Recuperado el puente imperativo entre PlayerScene y Player exactamente como en producción.
+Player vuelve a exponer PlayerActions mediante forwardRef y useImperativeHandle.
+PlayerScene consume los mensajes WebSocket play y pause y los reenvía al reproductor.
+No se modificó Worker, PartyServer, Roles, Permissions, sessionId, Skip ni la lógica de la playlist.
+Se mantuvo la arquitectura validada en los hitos anteriores.
+
+Estado: ✅ Implementado. Pendiente validación funcional en entorno online (Vercel + Cloudflare).
