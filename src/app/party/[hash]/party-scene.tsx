@@ -56,7 +56,7 @@ export function PartyScene({
   const [hostName, setHostName] = useState(party.name);
 
   useEffect(() => {
-    const value = readLocalStorageValue({ key: "name" });
+    const value = readLocalStorageValue<string | null>({ key: "name" });
 
     if (!value) {
       router.push(`/join/${party.hash}`);

@@ -291,6 +291,10 @@ export default {
 		}
 
 		const partyHash = match[1];
+		if (!partyHash) {
+			return new Response("Not Found", { status: 404 });
+		}
+
 		const id = env.PartyRoom.idFromName(partyHash);
 		const stub = env.PartyRoom.get(id);
 		return stub.fetch(new Request(request));

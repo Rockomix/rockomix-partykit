@@ -59,7 +59,15 @@ const Horn = z.object({
 	type: z.literal("horn"),
 });
 
-const Message = z.union([AddVideo, RemoveVideo, MarkAsPlayed, Horn]);
+const Play = z.object({
+	type: z.literal("play"),
+});
+
+const Pause = z.object({
+	type: z.literal("pause"),
+});
+
+const Message = z.union([AddVideo, RemoveVideo, MarkAsPlayed, Horn, Play, Pause]);
 
 type KaraokePartySettings = {
 	orderByFairness: boolean;
