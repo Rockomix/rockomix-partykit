@@ -3,12 +3,14 @@
 
 import type { Party } from "@prisma/client";
 import type { Message, KaraokeParty } from "party";
-import usePartySocket from "partysocket/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { env } from "~/env";
 import { readLocalStorageValue, useLocalStorage } from "@mantine/hooks";
 import { SongSearch } from "~/components/song-search";
-import { ListMusic, Megaphone } from "lucide-react";
+import { ListMusic, Megaphone, Pause, Play, SkipForward } from "lucide-react";
+import { toast } from "sonner";
+import usePartySocket from "partysocket/react";
+import { ensureSessionId } from "~/lib/session";
 import {
   Accordion,
   AccordionContent,
@@ -17,6 +19,26 @@ import {
 } from "~/components/ui/ui/accordion";
 import { decode } from "html-entities";
 import { useRouter } from "next/navigation";
+import { esMX } from "~/locales/es-MX";
+import { AppTextBrand } from "~/components/app-text-brand";
+
+function getTitleSizeClass(title: string) {
+  const length = title.trim().length;
+
+  if (length <= 14) {
+    return "text-2xl sm:text-2xl lg:text-3xl";
+  }
+
+  if (length <= 20) {
+    return "text-xl sm:text-2xl lg:text-3xl";
+  }
+
+  if (length <= 28) {
+    return "text-lg sm:text-xl lg:text-2xl";
+  }
+
+  return "text-base sm:text-lg lg:text-xl";
+}
 
 export function PartyScene({
   party,
@@ -28,43 +50,51 @@ export function PartyScene({
   const [name] = useLocalStorage<string>({ key: "name" });
   const router = useRouter();
 
-
   const [playlist, setPlaylist] = useState<KaraokeParty["playlist"]>(
     initialPlaylist?.playlist ?? [],
   );
+  const [hostName, setHostName] = useState(party.name);
 
   useEffect(() => {
-    const value = readLocalStorageValue({ key: "name" });
+    const value = readLocalStorageValue<string | null>({ key: "name" });
 
     if (!value) {
       router.push(`/join/${party.hash}`);
+      return;
     }
-  }, [router, party.hash]);
+
+    setHostName(value);
+  }, [party.hash, party.name, router]);
+
+  type ClientRole = "HOST" | "COHOST" | "INVITADO";
+
+  const [role, setRole] = useState<ClientRole>("INVITADO");
 
   const socket = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_URL,
     room: party.hash ?? "",
-    // onOpen(_event) {
-    //   if (name) {
-    //     socket.send(
-    //       JSON.stringify({
-    //         type: "join",
-    //         name,
-    //       }),
-    //     );
-    //   }
-    // },
+    query: {
+      role: "guest",
+      sessionId: ensureSessionId(),
+    },
     onMessage(event) {
       try {
         const eventData = JSON.parse(event.data);
 
-        if (eventData.type === "horn") {
-          // toast.success("You sent a horn!");
-          // playHorn(); // Play the horn sound
-          // return;
+        if (eventData.type === "role-assigned") {
+          setRole(eventData.role);
+
+          if (eventData.role === "COHOST" && eventData.message) {
+            toast.success(eventData.message);
+          }
+
+          return;
         }
 
-        // If it's an array, it's the playlist update
+        if (eventData.type === "horn") {
+          return;
+        }
+
         if (Array.isArray(eventData)) {
           setPlaylist(eventData);
         }
@@ -74,25 +104,42 @@ export function PartyScene({
     },
   });
 
+  const sendSocketMessage = (message: Message) => {
+    socket.send(JSON.stringify(message));
+  };
+
   const addSong = async (videoId: string, title: string, coverUrl: string) => {
-    socket.send(
-      JSON.stringify({
-        type: "add-video",
-        id: videoId,
-        title,
-        singerName: name,
-        coverUrl,
-      } satisfies Message),
-    );
+    sendSocketMessage({
+      type: "add-video",
+      id: videoId,
+      title,
+      singerName: name,
+      coverUrl,
+    } satisfies Message);
   };
 
   const sendHorn = async () => {
-    socket.send(
-      JSON.stringify({
-        type: "horn",
-      } satisfies Message)
-    );
-  }
+    sendSocketMessage({
+      type: "horn",
+    } satisfies Message);
+  };
+
+  const sendPlay = () => {
+    sendSocketMessage({ type: "play" } as Message);
+  };
+
+  const sendPause = () => {
+    sendSocketMessage({ type: "pause" } as Message);
+  };
+
+  const sendSkip = () => {
+    if (!nextVideo) return;
+
+    sendSocketMessage({
+      type: "mark-as-played",
+      id: nextVideo.id,
+    } satisfies Message);
+  };
 
   const nextVideos = playlist.filter((video) => !video.playedAt);
   const nextVideo = nextVideos[0] ?? null;
@@ -100,25 +147,67 @@ export function PartyScene({
   return (
     <>
       <div className="container mx-auto p-6 pb-16 text-center">
-        <div>
-          <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
-            {party.name}
-          </h1>
-        </div>
+        <div className="mx-auto flex w-full flex-col items-center gap-4 md:w-1/3 md:items-start md:gap-3">
+          <div className="flex items-center justify-center">
+            <AppTextBrand />
+          </div>
 
-        <div className="mt-5">
-          <SongSearch onVideoAdded={addSong} playlist={playlist} />
+          <h1
+            className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
+          >
+            Fiesta de {party.name}
+          </h1>
+
+          <div className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white/90 md:justify-start">
+            <span>👋 ¡Hola, {hostName}!</span>
+            {role === "COHOST" ? (
+              <span className="inline-flex items-center gap-2 text-lg font-semibold text-white/90">
+                <span className="text-emerald-400">🟢</span>
+                <span>CO HOST</span>
+              </span>
+            ) : role === "INVITADO" ? (
+              <span className="text-white">🙂</span>
+            ) : null}
+          </div>
+
+          <div className="w-full md:w-full">
+            <SongSearch onVideoAdded={addSong} playlist={playlist} />
+          </div>
         </div>
       </div>
 
-      <div className="fixed bottom-16 left-1/2 transform -translate-x-1/2 z-[100]">
-        <button
-          type="button"
-          className="rounded-full bg-yellow-200 p-2 text-black hover:text-white hover:bg-red-700 shadow-lg"
-          onClick={sendHorn}
-        >
-          <Megaphone size={32} />
-        </button>
+      <div className="fixed bottom-16 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-8 rounded-full bg-black/70 p-3 shadow-xl backdrop-blur">
+        <div className="flex items-center">
+          <button
+            type="button"
+            className="rounded-full bg-yellow-200 p-2 text-black shadow-lg hover:bg-red-700 hover:text-white"
+            onClick={sendHorn}
+          >
+            <Megaphone size={32} />
+          </button>
+        </div>
+
+        {role === "COHOST" && (
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn btn-secondary" onClick={sendPlay}>
+              <Play className="mr-2 h-4 w-4" />
+              Play
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={sendPause}>
+              <Pause className="mr-2 h-4 w-4" />
+              Pausa
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={sendSkip}
+              disabled={!nextVideo}
+            >
+              <SkipForward className="mr-2 h-4 w-4" />
+              Siguiente
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 z-50 flex flex-col w-full items-center bg-primary p-2 text-primary-foreground text-white">
@@ -127,7 +216,7 @@ export function PartyScene({
             <AccordionTrigger disabled={nextVideos.length < 2}>
               <div className="flex flex-row">
                 <ListMusic className="mr-3" />
-                {nextVideo ? nextVideo.title : "Playlist is empty"}
+                {nextVideo ? nextVideo.title : esMX.party.playlistEmpty}
               </div>
             </AccordionTrigger>
             <AccordionContent>

@@ -2,7 +2,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import YouTube, { type YouTubeProps, type YouTubePlayer } from "react-youtube";
 import { QrCode } from "./qr-code";
 import { type VideoInPlaylist } from "party";
@@ -11,6 +18,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "./ui/ui/button";
 import { MicVocal, SkipForward, Youtube } from "lucide-react";
 import { Spinner } from "./ui/ui/spinner";
+import { esMX } from "~/locales/es-MX";
 
 type Props = {
   joinPartyUrl: string;
@@ -20,13 +28,23 @@ type Props = {
   onTogglePlayPauseRef?: React.MutableRefObject<(() => void) | null>;
 };
 
-export function Player({
-  joinPartyUrl,
-  video,
-  isFullscreen = false,
-  onPlayerEnd,
-  onTogglePlayPauseRef,
-}: Props) {
+export type PlayerActions = {
+  play: () => void;
+  pause: () => void;
+  skip: () => void;
+  toggle: () => void;
+};
+
+export const Player = forwardRef<PlayerActions, Props>(function Player(
+  {
+    joinPartyUrl,
+    video,
+    isFullscreen = false,
+    onPlayerEnd,
+    onTogglePlayPauseRef,
+  }: Props,
+  ref,
+) {
   const playerRef = useRef<YouTubePlayer>(null);
 
   const [isReady, setIsReady] = useState(false);
@@ -34,16 +52,18 @@ export function Player({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const togglePlayPause = useCallback(() => {
-    if (playerRef.current && isReady) {
-      const playerState = playerRef.current.getPlayerState();
-      // YouTube player states: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
-      if (playerState === 1) {
-        // Playing - pause it
-        playerRef.current.pauseVideo();
-      } else if (playerState === 2 || playerState === 5 || playerState === -1) {
-        // Paused, cued, or unstarted - play it
-        playerRef.current.playVideo();
-      }
+    if (!playerRef.current || !isReady) {
+      return;
+    }
+
+    const playerState = playerRef.current.getPlayerState();
+    // YouTube player states: -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
+    if (playerState === 1) {
+      // Playing - pause it
+      playerRef.current.pauseVideo();
+    } else if (playerState === 2 || playerState === 5 || playerState === -1) {
+      // Paused, cued, or unstarted - play it
+      playerRef.current.playVideo();
     }
   }, [isReady]);
 
@@ -54,6 +74,43 @@ export function Player({
     }
   }, [onTogglePlayPauseRef, togglePlayPause, isReady]);
 
+  const play = useCallback(() => {
+    if (!playerRef.current || !isReady) {
+      return;
+    }
+
+    const state = playerRef.current.getPlayerState();
+    if (state !== 1) {
+      playerRef.current.playVideo();
+    }
+  }, [isReady]);
+
+  const pause = useCallback(() => {
+    if (!playerRef.current || !isReady) {
+      return;
+    }
+
+    const state = playerRef.current.getPlayerState();
+    if (state === 1 || state === 3 || state === 5 || state === -1) {
+      playerRef.current.pauseVideo();
+    }
+  }, [isReady]);
+
+  const skip = useCallback(() => {
+    onPlayerEnd();
+  }, [onPlayerEnd]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      play,
+      pause,
+      skip,
+      toggle: togglePlayPause,
+    }),
+    [pause, play, skip, togglePlayPause],
+  );
+
   const opts: YouTubeProps["opts"] = {
     playerVars: {
       // https://developers.google.com/youtube/player_parameters
@@ -63,6 +120,21 @@ export function Player({
       controls: 1,
     },
   };
+
+  const totalHeaderLength =
+    decode(video.title).length + (video.singerName?.length ?? 0);
+  const titleSizeClass =
+    totalHeaderLength <= 30
+      ? "text-4xl lg:text-5xl"
+      : totalHeaderLength <= 80
+        ? "text-2xl lg:text-3xl"
+        : "text-xl lg:text-2xl";
+  const singerSizeClass =
+    totalHeaderLength <= 30
+      ? "text-3xl lg:text-4xl"
+      : totalHeaderLength <= 80
+        ? "text-xl lg:text-2xl"
+        : "text-lg lg:text-xl";
 
   const onPlayerReady: YouTubeProps["onReady"] = (event) => {
     console.log("Player ready", { event });
@@ -110,11 +182,21 @@ export function Player({
           isFullscreen && "bg-gradient"
         )}
       >
-        <div>
-          <h1 className="text-outline scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+        <div className="w-full max-w-4xl">
+          <h1
+            className={cn(
+              "text-outline scroll-m-20 max-w-4xl font-extrabold tracking-tight",
+              titleSizeClass
+            )}
+          >
             {decode(video.title)}
           </h1>
-          <h2 className="text-outline scroll-m-20 text-3xl font-bold tracking-tight lg:text-4xl">
+          <h2
+            className={cn(
+              "text-outline scroll-m-20 font-bold tracking-tight",
+              singerSizeClass
+            )}
+          >
             <MicVocal className="mr-2 inline text-primary" size={32} />
             {video.singerName}
             <MicVocal
@@ -126,15 +208,14 @@ export function Player({
 
         <div>
           <h3 className="mb-2 scroll-m-20 text-2xl font-semibold tracking-tight animate-in fade-in zoom-in">
-            This video cannot be embedded. Click the button to open a new tab in
-            YouTube.
+            {esMX.player.embedBlocked}
           </h3>
           <Button
             type="button"
             className="w-fit self-center animate-in fade-in zoom-in"
             onClick={() => openYouTubeTab()}
           >
-            Play in YouTube
+            {esMX.player.playInYouTube}
             <Youtube className="ml-2" />
           </Button>
           <div className="mt-2">
@@ -147,7 +228,7 @@ export function Player({
               }}
             >
               <SkipForward className="mr-2 h-5 w-5" />
-              Skip
+              {esMX.player.skip}
             </Button>
           </div>
         </div>
@@ -198,10 +279,20 @@ export function Player({
             isReady ? "bg-opacity-80" : "bg-opacity-0"
           }`}
         >
-          <h1 className="text-outline scroll-m-20 text-4xl font-extrabold tracking-tight lg:text-5xl">
+          <h1
+            className={cn(
+              "text-outline scroll-m-20 max-w-4xl font-extrabold tracking-tight",
+              titleSizeClass
+            )}
+          >
             {decode(video.title)}
           </h1>
-          <h2 className="text-outline scroll-m-20 text-3xl font-bold tracking-tight lg:text-4xl">
+          <h2
+            className={cn(
+              "text-outline scroll-m-20 font-bold tracking-tight",
+              singerSizeClass
+            )}
+          >
             <MicVocal className="mr-2 inline text-primary" size={32} />
             {video.singerName}
             <MicVocal
@@ -235,7 +326,7 @@ export function Player({
             }}
           >
             <SkipForward className="mr-2 h-5 w-5" />
-            Skip
+            {esMX.player.skip}
           </Button>
           {/* <a
             href={joinPartyUrl}
@@ -248,4 +339,4 @@ export function Player({
       </div>
     </div>
   );
-}
+});

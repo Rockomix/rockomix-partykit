@@ -1,7 +1,36 @@
+/**
+ * ⚠️ ARCHIVO DE REFERENCIA - NO ES EL RUNTIME ACTIVO
+ *
+ * Este archivo pertenece a la implementación original basada en PartyKit.
+ *
+ * El runtime oficial de la aplicación se encuentra en:
+ *
+ *     /worker.ts
+ *
+ * Durante la migración a PartyServer/Cloudflare Worker, este archivo se
+ * conserva únicamente como referencia para recuperar lógica funcional de
+ * producción (Fair Queue, roles, ownership, etc.).
+ *
+ * IMPORTANTE:
+ * - No implementar nuevas funcionalidades aquí.
+ * - No corregir bugs aquí.
+ * - Toda modificación funcional debe realizarse en worker.ts.
+ *
+ * Si buscas el procesamiento real de:
+ * - add-video
+ * - remove-video
+ * - mark-as-played
+ * - horn
+ *
+ * debes revisar worker.ts.
+ */
+
 import type { Video } from "@prisma/client";
 import type * as Party from "partykit/server";
 import { z } from "zod";
 import { orderByFairness } from "~/utils/array";
+
+console.log("🔥 PARTY/INDEX EJECUTÁNDOSE 🔥");
 
 const EXPIRY_PERIOD_MILLISECONDS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -30,7 +59,15 @@ const Horn = z.object({
 	type: z.literal("horn"),
 });
 
-const Message = z.union([AddVideo, RemoveVideo, MarkAsPlayed, Horn]);
+const Play = z.object({
+	type: z.literal("play"),
+});
+
+const Pause = z.object({
+	type: z.literal("pause"),
+});
+
+const Message = z.union([AddVideo, RemoveVideo, MarkAsPlayed, Horn, Play, Pause]);
 
 type KaraokePartySettings = {
 	orderByFairness: boolean;
@@ -49,14 +86,31 @@ export type KaraokeParty = {
 	settings: KaraokePartySettings;
 };
 
+export type Participant = {
+	sessionId: string;
+	displayName?: string;
+	connectionId?: string;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type ParticipantRegistry = Record<string, Participant>;
+
+const PARTICIPANT_REGISTRY_KEY = "participantRegistry";
+
 export default class Server implements Party.Server {
 	karaokeParty: KaraokeParty | undefined;
+	participantRegistry: ParticipantRegistry | undefined;
 
 	constructor(readonly room: Party.Room) {}
 
 	async onStart() {
 		this.karaokeParty =
 			await this.room.storage.get<KaraokeParty>("karaokeParty");
+		this.participantRegistry =
+			(await this.room.storage.get<ParticipantRegistry>(
+				PARTICIPANT_REGISTRY_KEY,
+			)) ?? {};
 	}
 
 	async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
@@ -164,6 +218,10 @@ export default class Server implements Party.Server {
 	}
 
 	async onRequest(req: Party.Request) {
+		const url = new URL(req.url);
+		const sessionId = url.searchParams.get("sessionId");
+		const displayName = url.searchParams.get("name") ?? undefined;
+
 		if (req.method === "POST" && !this.karaokeParty) {
 			console.log("Creating new karaoke party");
 
@@ -175,6 +233,10 @@ export default class Server implements Party.Server {
 			};
 
 			await this.savekaraokeParty();
+		}
+
+		if (sessionId) {
+			await this.registerParticipant(sessionId, displayName);
 		}
 
 		if (this.karaokeParty) {
@@ -194,6 +256,32 @@ export default class Server implements Party.Server {
 				this.karaokeParty,
 			);
 		}
+	}
+
+	async registerParticipant(sessionId: string, displayName?: string) {
+		if (!this.participantRegistry) {
+			this.participantRegistry = {};
+		}
+
+		const now = new Date().toISOString();
+		const existing = this.participantRegistry[sessionId];
+
+		this.participantRegistry[sessionId] = {
+			sessionId,
+			displayName: displayName ?? existing?.displayName,
+			connectionId: existing?.connectionId,
+			createdAt: existing?.createdAt ?? now,
+			updatedAt: now,
+		};
+
+		await this.room.storage.put<ParticipantRegistry>(
+			PARTICIPANT_REGISTRY_KEY,
+			this.participantRegistry,
+		);
+	}
+
+	getParticipant(sessionId: string) {
+		return this.participantRegistry?.[sessionId] ?? null;
 	}
 
 	async onAlarm() {

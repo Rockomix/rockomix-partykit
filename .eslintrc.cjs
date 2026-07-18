@@ -16,6 +16,9 @@ const config = {
   "rules": {
     "@typescript-eslint/array-type": "off",
     "@typescript-eslint/consistent-type-definitions": "off",
+    // Temporal durante la migración PartyServer.
+    // Revisar cuando se actualice el stack de ESLint/TypeScript.
+    "@typescript-eslint/no-unnecessary-type-assertion": "warn",
     "@typescript-eslint/consistent-type-imports": [
       "warn",
       {

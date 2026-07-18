@@ -15,11 +15,12 @@ import { useState, useRef } from "react";
 import { toast } from "sonner";
 import useSound from "use-sound";
 import { EmptyPlayer } from "~/components/empty-player";
-import { Player } from "~/components/player";
+import { Player, type PlayerActions } from "~/components/player";
 import { SongSearch } from "~/components/song-search";
 import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
+import { esMX } from "~/locales/es-MX";
 
 // Imports implementados por Kikekaraoke
 import { AUDIO } from "~/constants/audio";
@@ -37,6 +38,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
+  const playerActionsRef = useRef<PlayerActions>(null);
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -45,7 +47,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
     if (timeSinceLastHorn >= 5000) {
       // 5 seconds in milliseconds
-      toast.success("Someone sent a horn!");
+      toast.success(esMX.party.hornSent);
       playHorn();
       lastHornTimeRef.current = now;
     } else {
@@ -58,6 +60,9 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const socket = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_URL,
     room: party.hash ?? "",
+    query: {
+      role: "host",
+    },
     onMessage(event) {
       // TODO: Improve type safety
       const eventData = JSON.parse(event.data);
@@ -65,6 +70,14 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
       if (eventData.type === "horn") {
         playThrottledHorn();
+      }
+
+      if (eventData.type === "play") {
+        playerActionsRef.current?.play();
+      }
+
+      if (eventData.type === "pause") {
+        playerActionsRef.current?.pause();
       }
 
       if (Array.isArray(eventData)) {
@@ -104,16 +117,20 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     );
   };
 
+  const sendSocketMessage = (message: Message) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    socket.send(JSON.stringify(message));
+  };
+
   const markAsPlayed = () => {
     if (currentVideo) {
-      // setShowOpenInYouTubeButton(false);
-
-      socket.send(
-        JSON.stringify({
-          type: "mark-as-played",
-          id: currentVideo.id,
-        } satisfies Message),
-      );
+      sendSocketMessage({
+        type: "mark-as-played",
+        id: currentVideo.id,
+      } satisfies Message);
     }
   };
 
@@ -141,6 +158,10 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
           <h1 className="text-outline scroll-m-20 text-3xl font-extrabold tracking-tight lg:text-4xl">
             {party.name}
           </h1>
+          <div className="mt-1 inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.22em] text-white">
+            <span className="text-emerald-400">🟢</span>
+            <span>HOST</span>
+          </div>
         </div>
         <SongSearch
           key={party.hash}
@@ -161,6 +182,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
             </Button>
             {currentVideo ? (
               <Player
+                ref={playerActionsRef}
                 key={currentVideo.id}
                 video={currentVideo}
                 joinPartyUrl={joinPartyUrl}

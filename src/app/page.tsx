@@ -1,15 +1,13 @@
-import Image from "next/image";
 import { CreateParty } from "../components/create-party";
-import logo from "~/assets/my-karaoke-party-logo.png";
 import Link from "next/link";
-import { Alert, AlertDescription, AlertTitle } from "~/components/ui/ui/alert";
-import { Megaphone } from "lucide-react";
-import { Button } from "~/components/ui/ui/button";
+import { LogoBrand } from "~/components/logo-brand";
+import { esMX } from "~/locales/es-MX";
 
 export default async function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-between">
       <div className="p-4">
+        {/* Publicidad futura Rockomix
         <Alert
           variant={"default"}
           className="m-2 bg-purple-600 duration-500 animate-in slide-in-from-top"
@@ -30,22 +28,16 @@ export default async function Home() {
             </p>
           </AlertDescription>
         </Alert>
+        */}
       </div>
       <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16 ">
-        <Image
-          src={logo}
-          width={666}
-          height={375}
-          alt="My Karaoke Party logo"
-          priority={true}
-          placeholder="blur"
-        />
+        <LogoBrand size="lg" />
 
         <CreateParty />
 
         <div>
           <Link href="/terms-of-service" className="hover:underline">
-            Terms of Service
+            {esMX.landing.termsOfService}
           </Link>
         </div>
       </div>

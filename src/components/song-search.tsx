@@ -9,6 +9,7 @@ import { Input } from "./ui/ui/input";
 import { Button } from "./ui/ui/button";
 import { Skeleton } from "./ui/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/ui/alert";
+import { esMX } from "~/locales/es-MX";
 
 type Props = {
   onVideoAdded: (videoId: string, title: string, coverUrl: string) => void;
@@ -41,13 +42,14 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
         <Input
           type="text"
           name="video-url"
-          placeholder="Enter artist and/or song name..."
+          placeholder={esMX.search.placeholder}
           className="w-full"
           value={videoInputValue}
           onChange={(e) => {
             setVideoInputValue(e.target.value);
             setCanFetch(e.target.value.length >= 3);
           }}
+          onFocus={(e) => e.currentTarget.select()}
           required
           minLength={3}
           autoComplete="off"
@@ -64,20 +66,17 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
       {isError && (
         <Alert variant={"destructive"} className="mt-4 bg-red-500 text-white">
           <Frown className="h-4 w-4" color="white" />
-          <AlertTitle>Error!</AlertTitle>
-          <AlertDescription>
-            There was an unexpected error while searching for karaoke videos.
-            Try again later.
-          </AlertDescription>
+          <AlertTitle>{esMX.search.errorTitle}</AlertTitle>
+          <AlertDescription>{esMX.search.errorBody}</AlertDescription>
         </Alert>
       )}
 
       {isFetched && !isError && !data?.length && (
         <Alert className="mt-4">
           <Frown className="h-4 w-4" />
-          <AlertTitle>Nothing found!</AlertTitle>
+          <AlertTitle>{esMX.search.emptyTitle}</AlertTitle>
           <AlertDescription>
-            No karaoke videos found for {videoInputValue}
+            {esMX.search.emptyBody.replace("{{query}}", videoInputValue)}
           </AlertDescription>
         </Alert>
       )}

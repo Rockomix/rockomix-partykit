@@ -1,6 +1,44 @@
-import { Server } from "../partykit-2026/packages/partyserver/src/index";
-import type { Connection, WSMessage } from "../partykit-2026/packages/partyserver/src/index";
+/**
+ * ⚠️ ARCHIVO DE REFERENCIA (PartyKit)
+ *
+ * Este archivo conserva la implementación original basada en PartyKit y se
+ * utiliza únicamente como referencia para recuperar comportamiento funcional
+ * durante la migración a PartyServer.
+ *
+ * El procesamiento actual de mensajes se realiza en worker.ts.
+ *
+ * NOTA:
+ * La migración a PartyServer aún no se considera cerrada; worker.ts sigue
+ * evolucionando hasta alcanzar paridad funcional con producción.
+ *
+ * No implementar nuevas funcionalidades en este archivo.
+ * Cualquier recuperación de lógica debe realizarse en worker.ts tomando este
+ * archivo como referencia.
+ */
+
+import { Server } from "partyserver";
+import type {
+  Connection,
+  ConnectionContext,
+  WSMessage,
+} from "partyserver";
 import { z } from "zod";
+
+import { ClientRole, RequestedRole, resolveRole } from "./party/roles";
+import {
+  canMarkAsPlayed,
+  canPause,
+  canPlay,
+} from "./party/permissions";
+
+function safeParseJson(value: string): unknown | null {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 
 type VideoInPlaylist = {
 	id: string;
@@ -46,10 +84,20 @@ const HornSchema = z.object({
 	type: z.literal("horn"),
 });
 
+const PlaySchema = z.object({
+	type: z.literal("play"),
+});
+
+const PauseSchema = z.object({
+	type: z.literal("pause"),
+});
+
 const MessageSchema = z.discriminatedUnion("type", [
 	AddVideoSchema,
 	RemoveVideoSchema,
 	MarkAsPlayedSchema,
+	PlaySchema,
+	PauseSchema,
 	HornSchema,
 ]);
 
@@ -85,11 +133,38 @@ export class PartyRoom extends Server {
 		return new Response("Party not found =(", { status: 404 });
 	}
 
-	override async onMessage(_connection: Connection, message: WSMessage) {
-		console.log("[B2] onMessage ENTER", {
-		messageType: typeof message,
-		message,
-		});
+	override async onConnect(connection: Connection, ctx: ConnectionContext) {
+		const url = new URL(ctx.request.url);
+		const requestedRole = (url.searchParams.get("role") ?? "guest") as RequestedRole;
+		const sessionId = url.searchParams.get("sessionId") ?? undefined;
+		const role = await resolveRole(requestedRole, sessionId, this.ctx);
+
+		connection.setState({ role });
+
+		connection.send(
+			JSON.stringify({
+				type: "connected",
+				message: "Rockomix WS OK",
+				role,
+				playlist: this.karaokeParty?.playlist ?? [],
+			}),
+		);
+
+		connection.send(
+			JSON.stringify({
+				type: "role-assigned",
+				role,
+				...(role === "COHOST"
+					? {
+						message:
+							"🎛️ Eres el cohost de esta fiesta\n\nAhora puedes:\n• Reproducir\n• Pausar\n• Skip",
+					}
+					: {}),
+			}),
+		);
+	}
+
+	override async onMessage(connection: Connection, message: WSMessage) {
 
 		if (typeof message !== "string") {
 			return;
@@ -97,93 +172,110 @@ export class PartyRoom extends Server {
 
 		if (!this.karaokeParty) return;
 
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(message);
-		} catch (error) {
-			console.error("[DEBUG B2] Invalid JSON message", error);
+		const parsed = safeParseJson(message);
+		if (!parsed) {
+			console.error("[DEBUG B2] Invalid JSON message");
 			return;
 		}
 
-			const result = MessageSchema.safeParse(parsed);
-			console.log("[B2] safeParse", {
-				success: result.success,
-			});
+		const result = MessageSchema.safeParse(parsed);
 
 		if (!result.success) {
 			return;
 		}
 
-			const data = result.data;
+		const data = result.data;
+		const state = connection.state as { role?: ClientRole } | null;
+		const role = state?.role;
 
-			switch (data.type) {
-				case "add-video": {
-					if (
-						!this.karaokeParty.playlist.find(
-							(video) => video.id === data.id && !video.playedAt
-						)
-					) {
-						console.log("[B2] adding video", data.id);
-						this.karaokeParty.playlist.push({
-							id: data.id,
-							title: data.title,
-							artist: "Some artist",
-							song: "Song name",
-							createdAt: new Date(),
-							singerName: data.singerName,
-							coverUrl: data.coverUrl,
-							playedAt: null,
-							duration: data.duration ?? undefined,
-						});
-
-						console.log("[B2] before storage");
-						await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-						console.log("[B2] after storage");
-
-						console.log("[B2] before broadcast");
-						this.broadcast(JSON.stringify(this.karaokeParty.playlist));
-						console.log("[B2] after broadcast");
-					}
-
-					break;
+		switch (data.type) {
+			case "play": {
+				if (!canPlay(role ?? "INVITADO")) {
+					return;
 				}
 
-				case "remove-video": {
-					const index = this.karaokeParty.playlist.findIndex(
-						(video) => video.id === data.id,
-					);
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
 
-					if (index !== -1) {
-						this.karaokeParty.playlist.splice(index, 1);
-						await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-						this.broadcast(JSON.stringify(this.karaokeParty.playlist));
-					}
-
-					break;
+			case "pause": {
+				if (!canPause(role ?? "INVITADO")) {
+					return;
 				}
 
-				case "mark-as-played": {
-					const video = this.karaokeParty.playlist.find(
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "horn": {
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "add-video": {
+				if (
+					!this.karaokeParty.playlist.find(
 						(video) => video.id === data.id && !video.playedAt,
-					);
+					)
+				) {
+					this.karaokeParty.playlist.push({
+						id: data.id,
+						title: data.title,
+						artist: "Some artist",
+						song: "Song name",
+						createdAt: new Date(),
+						singerName: data.singerName,
+						coverUrl: data.coverUrl,
+						playedAt: null,
+						duration: data.duration ?? undefined,
+					});
 
-					if (video) {
-						video.playedAt = new Date();
+				await this.ctx.storage.put("karaokeParty", this.karaokeParty);
+				this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+			}
 
-						await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-						this.broadcast(JSON.stringify(this.karaokeParty.playlist));
-					}
+				return;
+			}
 
-					break;
+			case "remove-video": {
+				const index = this.karaokeParty.playlist.findIndex(
+					(video) => video.id === data.id,
+				);
+
+				if (index !== -1) {
+					this.karaokeParty.playlist.splice(index, 1);
+					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
+					this.broadcast(JSON.stringify(this.karaokeParty.playlist));
 				}
 
-				case "horn": {
-					this.broadcast(JSON.stringify({ type: "horn" }));
-					break;
+				return;
+			}
+
+			case "mark-as-played": {
+				if (!canMarkAsPlayed(role ?? "INVITADO")) {
+					return;
 				}
+
+				const video = this.karaokeParty.playlist.find(
+					(video) => video.id === data.id && !video.playedAt,
+				);
+
+				if (video) {
+					video.playedAt = new Date();
+
+					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
+					this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+				}
+
+				return;
+			}
+
+			default: {
+				return;
 			}
 		}
 	}
+}
 
 interface Env {
 	PartyRoom: DurableObjectNamespace<PartyRoom>;
@@ -199,6 +291,10 @@ export default {
 		}
 
 		const partyHash = match[1];
+		if (!partyHash) {
+			return new Response("Not Found", { status: 404 });
+		}
+
 		const id = env.PartyRoom.idFromName(partyHash);
 		const stub = env.PartyRoom.get(id);
 		return stub.fetch(new Request(request));

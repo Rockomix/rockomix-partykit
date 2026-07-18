@@ -41,6 +41,7 @@
       // Other types...
       // This allows Serwist to type `window.serwist`.
       "@serwist/next/typings",
+      "@cloudflare/workers-types",
     ]
   },
   "include": [

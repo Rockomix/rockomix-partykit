@@ -6,6 +6,7 @@ import PlayerScene from "./player-scene";
 
 type Props = {
   params: { hash: string };
+  searchParams?: { sessionId?: string };
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -22,17 +23,21 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 
-export default async function PartyPage({ params }: Props) {
+export default async function PartyPage({ params, searchParams }: Props) {
   const partyHash = params.hash;
+  const sessionId = searchParams?.sessionId;
 
   const partyPromise = api.party.getByHash({ hash: partyHash });
 
-  const req = fetch(`${env.NEXT_PUBLIC_PARTYKIT_URL}/party/${partyHash}`, {
-    method: "GET",
-    next: {
-      revalidate: 0,
+  const req = fetch(
+    `${env.NEXT_PUBLIC_PARTYKIT_URL}/party/${partyHash}${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ""}`,
+    {
+      method: "GET",
+      next: {
+        revalidate: 0,
+      },
     },
-  });
+  );
 
   const [party, partyKitRes] = await Promise.all([partyPromise, req]);
 
