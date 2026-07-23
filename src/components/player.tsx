@@ -265,7 +265,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       />
       <div
         className={cn(
-          "absolute top-0 w-full text-center animate-in fade-in zoom-in",
+          "pointer-events-none absolute top-0 w-full text-center animate-in fade-in zoom-in",
           isPlaying ? "hidden" : "block"
         )}
       >
