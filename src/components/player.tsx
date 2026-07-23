@@ -270,7 +270,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
         )}
       >
         <div
-          className={`flex w-full flex-col items-center justify-center bg-black p-4 ${
+          className={`flex w-full flex-col items-center justify-center bg-black px-4 py-4 max-[900px]:py-2 ${
             isReady ? "bg-opacity-80" : "bg-opacity-0"
           }`}
         >
