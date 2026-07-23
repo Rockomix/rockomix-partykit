@@ -140,12 +140,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     console.log("Player ready", { event });
     // access to player in all event handlers via event.target
     playerRef.current = event.target;
-
-    const playerState = event.target.getPlayerState();
-
-    if (playerState !== -1) {
-      setIsReady(true);
-    }
+    setIsReady(true);
   };
 
   const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {

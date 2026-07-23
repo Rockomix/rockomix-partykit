@@ -14,7 +14,7 @@ type Props = {
 
 const QR_RENDER_KEY = "qrRender";
 
-export function QrCode({ url, size = 240, className }: Props) {
+export function QrCode({ url, size = 120, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [renderMode, setRenderMode] = useLocalStorage<"svg" | "canvas">({
     key: QR_RENDER_KEY,
@@ -37,11 +37,12 @@ export function QrCode({ url, size = 240, className }: Props) {
     qr.make();
 
     const moduleCount = qr.getModuleCount();
-    const quietZoneModules = 4;
+    // El wrapper ya proporciona el margen blanco exterior.
+    // Canvas no añade una quiet zone interna para igualar el tamaño visual del SVG.
+    const quietZoneModules = 0;
     const totalModules = moduleCount + quietZoneModules * 2;
     const cellSize = size / totalModules;
-    const actualSize = Math.floor(cellSize * totalModules);
-    const offset = Math.floor((size - actualSize) / 2);
+    const offset = 0;
 
     canvas.width = size;
     canvas.height = size;
@@ -77,8 +78,9 @@ export function QrCode({ url, size = 240, className }: Props) {
   }, [renderMode, size, url]);
 
   return (
+
     <div
-      className={cn("inline-flex shrink-0 bg-white p-4", className)}
+      className={cn("inline-flex shrink-0 bg-white p-2", className)}
       onClick={() => {
         setRenderMode((current) => (current === "svg" ? "canvas" : "svg"));
       }}
