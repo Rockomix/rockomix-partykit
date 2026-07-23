@@ -99,10 +99,18 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     const toastId = "player-portrait-hint";
 
     if (portraitMobileOrTablet.matches) {
-      toast.info("🎤 Mejor experiencia como anfitrión", {
+      toast.info("Mejor experiencia en horizontal", {
         id: toastId,
-        description: "Gira tu dispositivo a modo horizontal.",
+        description:
+          "Gira tu dispositivo para administrar la fiesta con mayor comodidad.",
         duration: 5000,
+        icon: <span className="text-2xl">🎤</span>,
+        classNames: {
+          toast: "bg-slate-950 px-5 py-4 text-white",
+          title: "text-base font-bold",
+          description: "text-sm text-slate-200",
+          icon: "mr-3",
+        },
       });
     }
 

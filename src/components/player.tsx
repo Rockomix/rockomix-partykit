@@ -125,16 +125,16 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     decode(video.title).length + (video.singerName?.length ?? 0);
   const titleSizeClass =
     totalHeaderLength <= 30
-      ? "text-4xl lg:text-5xl"
+      ? "text-4xl lg:text-5xl max-[900px]:text-3xl"
       : totalHeaderLength <= 80
-        ? "text-2xl lg:text-3xl"
-        : "text-xl lg:text-2xl";
+        ? "text-2xl lg:text-3xl max-[900px]:text-xl"
+        : "text-xl lg:text-2xl max-[900px]:text-lg";
   const singerSizeClass =
     totalHeaderLength <= 30
-      ? "text-3xl lg:text-4xl"
+      ? "text-3xl lg:text-4xl max-[900px]:text-2xl"
       : totalHeaderLength <= 80
-        ? "text-xl lg:text-2xl"
-        : "text-lg lg:text-xl";
+        ? "text-xl lg:text-2xl max-[900px]:text-lg"
+        : "text-lg lg:text-xl max-[900px]:text-base";
 
   const onPlayerReady: YouTubeProps["onReady"] = (event) => {
     console.log("Player ready", { event });
