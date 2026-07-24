@@ -137,7 +137,18 @@ export class PartyRoom extends Server {
 		const url = new URL(ctx.request.url);
 		const requestedRole = (url.searchParams.get("role") ?? "guest") as RequestedRole;
 		const sessionId = url.searchParams.get("sessionId") ?? undefined;
+  		
 		const role = await resolveRole(requestedRole, sessionId, this.ctx);
+
+		// 👇 LOG TEMPORAL AQUÍ
+		/*console.log({
+		url: ctx.request.url,
+		requestedRole,
+		sessionId,
+		role,
+		});*/
+
+		
 
 		connection.setState({ role });
 

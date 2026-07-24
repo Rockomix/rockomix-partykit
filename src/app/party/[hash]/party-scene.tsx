@@ -147,7 +147,7 @@ export function PartyScene({
   return (
     <>
       <div className="container mx-auto p-6 pb-16 text-center">
-        <div className="mx-auto flex w-full flex-col items-center gap-4 md:w-1/3 md:items-start md:gap-3">
+        <div className="mx-auto flex w-full flex-col items-center gap-4 md:w-1/2 xl:w-1/3 md:items-start md:gap-3">
           <div className="flex items-center justify-center">
             <AppTextBrand />
           </div>

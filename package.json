@@ -1,8 +1,8 @@
 {
   "name": "mykaraoke-party",
-  "version": "0.5.0",
-  "author": "EMPZ",
-  "repository": "https://github.com/empz/my-karaoke-party",
+  "version": "0.7.0",
+  "author": "Kikekaraoke + EMPZ",
+  "repository": "https://github.com/Rockomix/rockomix-partykit",
   "type": "module",
   "scripts": {
     "build": "next build",
@@ -54,6 +54,7 @@
     "react-canvas-confetti": "1.4.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.51.5",
+    "qrcode-generator": "^2.0.4",
     "react-qr-code": "^2.0.13",
     "react-youtube": "^10.1.0",
     "server-only": "^0.0.1",

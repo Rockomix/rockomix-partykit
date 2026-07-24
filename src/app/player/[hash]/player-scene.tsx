@@ -11,7 +11,7 @@ import { ListPlus, Maximize, Minimize, SkipForward, X } from "lucide-react";
 import Image from "next/image";
 import type { Message, KaraokeParty } from "party";
 import usePartySocket from "partysocket/react";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import useSound from "use-sound";
 import { EmptyPlayer } from "~/components/empty-player";
@@ -87,6 +87,60 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   });
 
   const { ref, toggle, fullscreen } = useFullscreen();
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+
+    const portraitMobileOrTablet = window.matchMedia(
+      "(orientation: portrait) and (pointer: coarse) and (max-width: 1024px)",
+    );
+    const toastId = "player-portrait-hint";
+
+    if (portraitMobileOrTablet.matches) {
+      toast.info("Mejor experiencia en horizontal", {
+        id: toastId,
+        description:
+          "Gira tu dispositivo para administrar la fiesta con mayor comodidad.",
+        duration: 5000,
+        icon: <span className="text-2xl">🎤</span>,
+        classNames: {
+          toast: "bg-slate-950 px-5 py-4 text-white",
+          title: "text-base font-bold",
+          description: "text-sm text-slate-200",
+          icon: "mr-3",
+        },
+      });
+    }
+
+    const handleOrientationChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) {
+        toast.dismiss(toastId);
+      }
+    };
+
+    if (portraitMobileOrTablet.addEventListener) {
+      portraitMobileOrTablet.addEventListener(
+        "change",
+        handleOrientationChange,
+      );
+    } else {
+      portraitMobileOrTablet.addListener(handleOrientationChange);
+    }
+
+    return () => {
+      if (portraitMobileOrTablet.removeEventListener) {
+        portraitMobileOrTablet.removeEventListener(
+          "change",
+          handleOrientationChange,
+        );
+      } else {
+        portraitMobileOrTablet.removeListener(handleOrientationChange);
+      }
+      toast.dismiss(toastId);
+    };
+  }, []);
 
   const currentVideo = playlist.find((video) => !video.playedAt);
   const nextVideos = playlist.filter((video) => !video.playedAt);
