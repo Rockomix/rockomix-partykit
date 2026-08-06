@@ -13,6 +13,7 @@ import {
   Megaphone,
   Pause,
   Play,
+  Share2,
   SkipForward,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +29,8 @@ import { decode } from "html-entities";
 import { useRouter } from "next/navigation";
 import { esMX } from "~/locales/es-MX";
 import { AppTextBrand } from "~/components/app-text-brand";
+import { InvitePartyDialog } from "~/components/invite-party-dialog";
+import { getUrl } from "~/utils/url";
 
 function getTitleSizeClass(title: string) {
   const length = title.trim().length;
@@ -174,6 +177,7 @@ export function PartyScene({
 
   const nextVideos = playlist.filter((video) => !video.playedAt);
   const nextVideo = nextVideos[0] ?? null;
+  const joinPartyUrl = getUrl(`/join/${party.hash}`);
 
   return (
     <>
@@ -197,11 +201,25 @@ export function PartyScene({
                   : "max-h-96 translate-y-0 opacity-100"
               }`}
             >
-              <h1
-                className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
-              >
-                Fiesta de {party.name}
-              </h1>
+              <div className="flex w-full items-center justify-between gap-3">
+                <h1
+                  className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
+                >
+                  Fiesta de {party.name}
+                </h1>
+                <InvitePartyDialog
+                  url={joinPartyUrl}
+                  trigger={
+                    <button
+                      type="button"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-semibold text-white/85 shadow-sm backdrop-blur-sm transition-all hover:bg-white/15 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    >
+                      <Share2 className="h-4 w-4" aria-hidden="true" />
+                      <span>Invitar</span>
+                    </button>
+                  }
+                />
+              </div>
 
           <div className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white/90 md:justify-start">
             <span>👋 ¡Hola, {hostName}!</span>
