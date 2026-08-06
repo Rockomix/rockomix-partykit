@@ -30,6 +30,7 @@ import {
   canPause,
   canPlay,
 } from "./party/permissions";
+import { orderByFairness } from "~/utils/array";
 
 function safeParseJson(value: string): unknown | null {
   try {
@@ -92,12 +93,17 @@ const PauseSchema = z.object({
 	type: z.literal("pause"),
 });
 
+const ToggleFullscreenSchema = z.object({
+	type: z.literal("toggle-fullscreen"),
+});
+
 const MessageSchema = z.discriminatedUnion("type", [
 	AddVideoSchema,
 	RemoveVideoSchema,
 	MarkAsPlayedSchema,
 	PlaySchema,
 	PauseSchema,
+	ToggleFullscreenSchema,
 	HornSchema,
 ]);
 
@@ -218,6 +224,15 @@ export class PartyRoom extends Server {
 				return;
 			}
 
+			case "toggle-fullscreen": {
+				if (!canPlay(role ?? "INVITADO")) {
+					return;
+				}
+
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
 			case "horn": {
 				this.broadcast(JSON.stringify(data));
 				return;
@@ -240,6 +255,38 @@ export class PartyRoom extends Server {
 						playedAt: null,
 						duration: data.duration ?? undefined,
 					});
+
+						// IMPORTANTE:
+						// Esta lógica replica el comportamiento de Producción 1.0.
+						// No reemplazar por la variante del worker moderno.
+						// La canción actual debe conservarse y solo se reordenan las canciones pendientes.
+							if (this.karaokeParty.settings.orderByFairness) {
+								const ordered = orderByFairness(
+									this.karaokeParty.playlist,
+									(video) => video.singerName,
+									(a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+								);
+
+							const playedVideos = this.karaokeParty.playlist.filter(
+								(video) => video.playedAt,
+							);
+							const currentVideo = this.karaokeParty.playlist.find(
+								(video) => !video.playedAt,
+							);
+							const nextVideos = ordered.filter(
+								(video) => !video.playedAt && video !== currentVideo,
+							);
+
+							const newPlaylist = [...playedVideos];
+
+							if (currentVideo) {
+								newPlaylist.push(currentVideo);
+								}
+
+								newPlaylist.push(...nextVideos);
+
+								this.karaokeParty.playlist = newPlaylist;
+						}
 
 				await this.ctx.storage.put("karaokeParty", this.karaokeParty);
 				this.broadcast(JSON.stringify(this.karaokeParty.playlist));

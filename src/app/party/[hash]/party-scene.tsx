@@ -7,7 +7,14 @@ import { useEffect, useState, useRef } from "react";
 import { env } from "~/env";
 import { readLocalStorageValue, useLocalStorage } from "@mantine/hooks";
 import { SongSearch } from "~/components/song-search";
-import { ListMusic, Megaphone, Pause, Play, SkipForward } from "lucide-react";
+import {
+  ListMusic,
+  Maximize,
+  Megaphone,
+  Pause,
+  Play,
+  SkipForward,
+} from "lucide-react";
 import { toast } from "sonner";
 import usePartySocket from "partysocket/react";
 import { ensureSessionId } from "~/lib/session";
@@ -132,6 +139,10 @@ export function PartyScene({
     sendSocketMessage({ type: "pause" } as Message);
   };
 
+  const sendToggleFullscreen = () => {
+    sendSocketMessage({ type: "toggle-fullscreen" } satisfies Message);
+  };
+
   const sendSkip = () => {
     if (!nextVideo) return;
 
@@ -191,11 +202,9 @@ export function PartyScene({
           <div className="flex items-center gap-2">
             <button type="button" className="btn btn-secondary" onClick={sendPlay}>
               <Play className="mr-2 h-4 w-4" />
-              Play
             </button>
             <button type="button" className="btn btn-secondary" onClick={sendPause}>
               <Pause className="mr-2 h-4 w-4" />
-              Pausa
             </button>
             <button
               type="button"
@@ -204,7 +213,13 @@ export function PartyScene({
               disabled={!nextVideo}
             >
               <SkipForward className="mr-2 h-4 w-4" />
-              Siguiente
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={sendToggleFullscreen}
+            >
+              <Maximize className="mr-2 h-4 w-4" />
             </button>
           </div>
         )}

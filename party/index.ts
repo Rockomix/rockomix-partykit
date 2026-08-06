@@ -67,7 +67,19 @@ const Pause = z.object({
 	type: z.literal("pause"),
 });
 
-const Message = z.union([AddVideo, RemoveVideo, MarkAsPlayed, Horn, Play, Pause]);
+const ToggleFullscreen = z.object({
+	type: z.literal("toggle-fullscreen"),
+});
+
+const Message = z.union([
+	AddVideo,
+	RemoveVideo,
+	MarkAsPlayed,
+	Horn,
+	Play,
+	Pause,
+	ToggleFullscreen,
+]);
 
 type KaraokePartySettings = {
 	orderByFairness: boolean;

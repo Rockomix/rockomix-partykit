@@ -66,7 +66,6 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     onMessage(event) {
       // TODO: Improve type safety
       const eventData = JSON.parse(event.data);
-      console.log(eventData);
 
       if (eventData.type === "horn") {
         playThrottledHorn();
@@ -78,6 +77,10 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
       if (eventData.type === "pause") {
         playerActionsRef.current?.pause();
+      }
+
+      if (eventData.type === "toggle-fullscreen") {
+        void toggle().catch(() => undefined);
       }
 
       if (Array.isArray(eventData)) {
