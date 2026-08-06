@@ -61,6 +61,26 @@ export function PartyScene({
     initialPlaylist?.playlist ?? [],
   );
   const [hostName, setHostName] = useState(party.name);
+  const contentScrollRef = useRef<HTMLDivElement>(null);
+  const [isBrandScrolled, setIsBrandScrolled] = useState(false);
+
+  useEffect(() => {
+    const content = contentScrollRef.current;
+
+    if (!content) {
+      return;
+    }
+
+    const handleScroll = () => {
+      setIsBrandScrolled(content.scrollTop > 4);
+    };
+
+    content.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      content.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   useEffect(() => {
     const value = readLocalStorageValue<string | null>({ key: "name" });
@@ -157,17 +177,31 @@ export function PartyScene({
 
   return (
     <>
-      <div className="container mx-auto p-6 pb-16 text-center">
-        <div className="mx-auto flex w-full flex-col items-center gap-4 md:w-1/2 xl:w-1/3 md:items-start md:gap-3">
-          <div className="flex items-center justify-center">
-            <AppTextBrand />
+      <div className="container mx-auto flex h-screen flex-col p-6 pb-16 text-center">
+        <div className="mx-auto flex min-h-0 w-full flex-1 flex-col items-center md:w-1/2 xl:w-1/3 md:items-start">
+
+          <div className="sticky top-0 z-20 flex shrink-0 items-center justify-center">
+            <AppTextBrand
+              className={`[&>img]:origin-top [&>img]:transition-transform [&>img]:duration-300 [&>img]:ease-out ${
+                isBrandScrolled
+                  ? "[&>img]:scale-90"
+                  : "[&>img]:scale-100"
+              }`}
+            />
           </div>
 
-          <h1
-            className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
-          >
-            Fiesta de {party.name}
-          </h1>
+          <div
+            className={`mt-2 flex flex-col items-center gap-4 transition-[max-height,opacity,transform] duration-300 ease-out md:items-start md:gap-3 ${
+                isBrandScrolled
+                  ? "pointer-events-none max-h-0 -translate-y-2 overflow-hidden opacity-0"
+                  : "max-h-96 translate-y-0 opacity-100"
+              }`}
+            >
+              <h1
+                className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
+              >
+                Fiesta de {party.name}
+              </h1>
 
           <div className="inline-flex flex-wrap items-center gap-2 text-lg font-semibold text-white/90 md:justify-start">
             <span>👋 ¡Hola, {hostName}!</span>
@@ -181,8 +215,15 @@ export function PartyScene({
             ) : null}
           </div>
 
-          <div className="w-full md:w-full">
-            <SongSearch onVideoAdded={addSong} playlist={playlist} />
+          </div>
+
+          <div
+            ref={contentScrollRef}
+            className="min-h-0 w-full flex-1 overflow-y-auto pt-4 md:pt-3"
+          >
+            <div className="w-full">
+              <SongSearch onVideoAdded={addSong} playlist={playlist} />
+            </div>
           </div>
         </div>
       </div>
