@@ -279,6 +279,61 @@ HITO UI V2 - PLAYER COMPLETADO
 Pendiente:
 □ Corregir la identidad del usuario que agrega canciones (HOST / COHOST / GUEST) reutilizando la implementación existente en rockomix-production.
 
+===========================================================
+HITO UX V1 - Experiencia de Invitado
+===========================================================
+
+Estado: ✅ COMPLETADO
+
+Objetivo
+
+Mejorar la experiencia del Invitado y COHOST manteniendo la arquitectura existente, priorizando una interfaz moderna, limpia y enfocada en la experiencia de uso.
+
+Implementado
+
+### Branding
+
+✅ Brand siempre visible durante el desplazamiento.
+✅ Reducción dinámica únicamente del logotipo al hacer scroll.
+✅ La firma "by Kikekaraoke" mantiene su tamaño y legibilidad.
+✅ Ajustes de espaciado para mejorar la jerarquía visual del encabezado.
+
+### Encabezado
+
+✅ Mejor organización visual del nombre de la fiesta.
+✅ Separación optimizada entre Brand, nombre de la fiesta, saludo y buscador.
+✅ Corrección del área desplazable para evitar que el scrollbar aparezca sobre el encabezado.
+
+### Invitaciones
+
+✅ Nueva acción contextual "Invitar" junto al nombre de la fiesta.
+✅ Disponible para HOST, COHOST e INVITADO.
+✅ Nuevo componente reutilizable:
+
+src/components/invite-party-dialog.tsx
+
+Implementado:
+
+✅ QR de invitación.
+✅ Enlace de la fiesta.
+✅ navigator.share() cuando está disponible.
+✅ Copiar enlace como fallback.
+✅ Toast de confirmación.
+✅ Cierre mediante botón y tocando fuera del diálogo.
+✅ Diseño premium sin scroll interno.
+
+Arquitectura
+
+✅ SongSearch permanece sin modificaciones.
+✅ Reutilización de QrCode.
+✅ Reutilización de getUrl().
+✅ Reutilización del sistema de toast.
+✅ Sin cambios en Worker, PartyServer, Roles, Playlist, WebSocket ni reproducción.
+
+Resultado
+
+La experiencia de incorporación de nuevos invitados queda integrada directamente en la interfaz principal mediante un flujo moderno, reutilizable y preparado para futuras mejoras.
+
 
 HITO ARQ V1 - Infraestructura base del registro de participantes
 
