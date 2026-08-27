@@ -19,6 +19,7 @@ import { Button } from "./ui/ui/button";
 import { MicVocal, SkipForward, Youtube } from "lucide-react";
 import { Spinner } from "./ui/ui/spinner";
 import { esMX } from "~/locales/es-MX";
+import { APP_TEXT_BRAND } from "~/constants/app";
 
 type Props = {
   joinPartyUrl: string;
@@ -237,7 +238,14 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
         </div>
 
         <div className="relative flex w-full basis-1/4 items-end text-center">
-          <QrCode url={joinPartyUrl} />
+          <div className="relative top-10 flex flex-col items-center">
+            <QrCode url={joinPartyUrl} />
+            {isPlaying && (
+              <span className="font-bold tracking-wide text-white/75">
+                {APP_TEXT_BRAND.subtitle}
+              </span>
+            )}
+          </div>
           <a
             href={joinPartyUrl}
             target="_blank"
@@ -315,7 +323,14 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       </div>
 
       <div className="absolute bottom-12 left-0 z-10 flex w-full flex-row justify-between px-4">
-        <QrCode url={joinPartyUrl} />
+        <div className="relative top-10 flex flex-col items-center">
+          <QrCode url={joinPartyUrl} />
+          {isPlaying && (
+            <span className="font-bold tracking-wide text-white/75">
+              {APP_TEXT_BRAND.subtitle}
+            </span>
+          )}
+        </div>
 
         <div
           className={`self-end p-2 ${

@@ -1,5 +1,5 @@
 export const APP_TEXT_BRAND = {
-  name: "My Karaoke Party",
+  name: "MyRockomix.Party",
   subtitle: "by Kikekaraoke",
-  description: "Host a karaoke party with your friends!",
+  description: "¡Organiza tu fiesta de karaoke con tus amigos!",
 } as const;

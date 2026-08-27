@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { cn } from "~/lib/utils";
 import logo from "~/assets/my-karaoke-party-logo.png";
+import { APP_TEXT_BRAND } from "~/constants/app";
 
 type LogoBrandSize = "lg" | "md" | "sm" | "xs";
 
@@ -77,7 +78,7 @@ export function LogoBrand({ size = "md", className }: Props) {
           styles.labelClass,
         )}
       >
-        by Kikekaraoke
+        {APP_TEXT_BRAND.subtitle}
       </span>
     </div>
   );
