@@ -19,11 +19,12 @@ type Props = {
 export function SongSearch({ onVideoAdded, playlist }: Props) {
   const [videoInputValue, setVideoInputValue] = useState("");
   const [canFetch, setCanFetch] = useState(false);
+  const [includeKaraoke, setIncludeKaraoke] = useState(true);
 
   const { data, isError, refetch, isLoading, isFetched } =
     api.youtube.search.useQuery(
       {
-        keyword: `${videoInputValue} karaoke`,
+        keyword: includeKaraoke ? `${videoInputValue} karaoke` : videoInputValue,
       },
       { refetchOnWindowFocus: false, enabled: false, retry: false },
     );
@@ -62,6 +63,15 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
           )}
         </Button>
       </div>
+
+      <label className="mt-3 flex items-center gap-2 text-sm text-white">
+        <input
+          type="checkbox"
+          checked={includeKaraoke}
+          onChange={(e) => setIncludeKaraoke(e.target.checked)}
+        />
+        <span>Karaoke</span>
+      </label>
 
       {isError && (
         <Alert variant={"destructive"} className="mt-4 bg-red-500 text-white">
