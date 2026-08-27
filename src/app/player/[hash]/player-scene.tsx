@@ -25,6 +25,8 @@ import { esMX } from "~/locales/es-MX";
 // Imports implementados por Kikekaraoke
 import { AUDIO } from "~/constants/audio";
 
+const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
+
 type Props = {
   party: Party;
   initialPlaylist: KaraokeParty;
@@ -39,6 +41,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
   const playerActionsRef = useRef<PlayerActions>(null);
+  const [waitingVideoDismissed, setWaitingVideoDismissed] = useState(false);
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -148,6 +151,12 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const currentVideo = playlist.find((video) => !video.playedAt);
   const nextVideos = playlist.filter((video) => !video.playedAt);
 
+  useEffect(() => {
+    if (currentVideo) {
+      setWaitingVideoDismissed(false);
+    }
+  }, [currentVideo?.id]);
+
   const addSong = (videoId: string, title: string, coverUrl: string) => {
     const singerName = readLocalStorageValue({
       key: "name",
@@ -246,6 +255,23 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                 isFullscreen={fullscreen}
                 onPlayerEnd={() => {
                   markAsPlayed();
+                }}
+                onTogglePlayPauseRef={togglePlayPauseRef}
+              />
+            ) : !waitingVideoDismissed ? (
+              <Player
+                ref={playerActionsRef}
+                key={INSTITUTIONAL_VIDEO_ID}
+                video={{
+                  id: INSTITUTIONAL_VIDEO_ID,
+                  title: "Video institucional",
+                  singerName: "",
+                }}
+                joinPartyUrl={joinPartyUrl}
+                isFullscreen={fullscreen}
+                isWaiting={true}
+                onPlayerEnd={() => {
+                  setWaitingVideoDismissed(true);
                 }}
                 onTogglePlayPauseRef={togglePlayPauseRef}
               />

@@ -22,10 +22,11 @@ import { esMX } from "~/locales/es-MX";
 
 type Props = {
   joinPartyUrl: string;
-  video: VideoInPlaylist;
+  video: Pick<VideoInPlaylist, "id" | "title" | "singerName">;
   isFullscreen: boolean;
   onPlayerEnd: () => void;
   onTogglePlayPauseRef?: React.MutableRefObject<(() => void) | null>;
+  isWaiting?: boolean;
 };
 
 export type PlayerActions = {
@@ -42,6 +43,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     isFullscreen = false,
     onPlayerEnd,
     onTogglePlayPauseRef,
+    isWaiting = false,
   }: Props,
   ref,
 ) {
@@ -118,6 +120,12 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       autoplay: 1,
       rel: 0,
       controls: 1,
+      ...(isWaiting
+        ? {
+            loop: 1,
+            playlist: video.id,
+          }
+        : {}),
     },
   };
 
@@ -260,13 +268,15 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
         onPause={onPlayerPause}
         onError={onPlayerError}
         onEnd={() => {
-          onPlayerEnd();
+          if (!isWaiting) {
+            onPlayerEnd();
+          }
         }}
       />
       <div
         className={cn(
           "pointer-events-none absolute top-0 w-full text-center animate-in fade-in zoom-in",
-          isPlaying ? "hidden" : "block"
+          isPlaying || isWaiting ? "hidden" : "block"
         )}
       >
         <div
