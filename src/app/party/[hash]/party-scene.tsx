@@ -65,7 +65,9 @@ export function PartyScene({
   );
   const [hostName, setHostName] = useState(party.name);
   const contentScrollRef = useRef<HTMLDivElement>(null);
+  const previousScrollTopRef = useRef(0);
   const [isBrandScrolled, setIsBrandScrolled] = useState(false);
+  const [isPlaylistVisible, setIsPlaylistVisible] = useState(true);
 
   useEffect(() => {
     const content = contentScrollRef.current;
@@ -75,7 +77,17 @@ export function PartyScene({
     }
 
     const handleScroll = () => {
-      setIsBrandScrolled(content.scrollTop > 4);
+      const scrollTop = content.scrollTop;
+
+      setIsBrandScrolled(scrollTop > 4);
+
+      if (scrollTop <= 0 || scrollTop < previousScrollTopRef.current) {
+        setIsPlaylistVisible(true);
+      } else if (scrollTop > previousScrollTopRef.current) {
+        setIsPlaylistVisible(false);
+      }
+
+      previousScrollTopRef.current = scrollTop;
     };
 
     content.addEventListener("scroll", handleScroll, { passive: true });
@@ -246,87 +258,97 @@ export function PartyScene({
         </div>
       </div>
 
-      <div className="fixed bottom-16 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-8 rounded-full bg-black/70 p-3 shadow-xl backdrop-blur">
-        <div className="flex items-center">
-          <button
-            type="button"
-            className="rounded-full bg-yellow-200 p-2 text-black shadow-lg hover:bg-red-700 hover:text-white"
-            onClick={sendHorn}
-          >
-            <Megaphone size={32} />
-          </button>
-        </div>
-
-        {role === "COHOST" && (
-          <div className="flex items-center gap-2">
-            <button type="button" className="btn btn-secondary" onClick={sendPlay}>
-              <Play className="mr-2 h-4 w-4" />
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={sendPause}>
-              <Pause className="mr-2 h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={sendSkip}
-              disabled={!nextVideo}
-            >
-              <SkipForward className="mr-2 h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={sendToggleFullscreen}
-            >
-              <Maximize className="mr-2 h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="fixed bottom-0 z-50 flex flex-col w-full items-center bg-primary p-2 text-primary-foreground text-white">
-        <Accordion type="single" collapsible className="max-h-screen w-full">
-          <AccordionItem value="item-1" className="border-0">
-            <AccordionTrigger disabled={nextVideos.length < 2}>
-              <div className="flex min-w-0 flex-row items-center">
-                <ListMusic className="mr-3" />
-                {nextVideo ? (
-                  <span className="mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-white/90">
-                    <Play className="h-3 w-3 fill-current" aria-hidden="true" />
-                  </span>
-                ) : null}
-                {nextVideo ? (
-                  <div className="min-w-0 text-left">
-                    <div className="truncate">{nextVideo.title}</div>
-                    {nextVideo.singerName ? (
-                      <div className="truncate text-sm font-normal text-white/70">
-                        {nextVideo.singerName}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  esMX.party.playlistEmpty
-                )}
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <ul className="divide-y divide-accent-foreground">
-                {nextVideos.slice(1).map((video) => (
-                  <li key={video.id} className="p-2 first:pt-0 last:pb-0">
+      <div className="fixed inset-x-0 bottom-0 z-[100] flex max-h-[100dvh] flex-col">
+        <div
+          className={`min-h-0 w-full overflow-y-auto bg-primary p-2 text-primary-foreground text-white transition-[transform,opacity] duration-200 ease-out ${
+            isPlaylistVisible
+              ? "translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-full opacity-0"
+          }`}
+        >
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="item-1" className="border-0">
+              <AccordionTrigger disabled={nextVideos.length < 2}>
+                <div className="flex min-w-0 flex-row items-center">
+                  <ListMusic className="mr-3" />
+                  {nextVideo ? (
+                    <span className="mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-white/90">
+                      <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                    </span>
+                  ) : null}
+                  {nextVideo ? (
                     <div className="min-w-0 text-left">
-                      <div className="truncate">{decode(video.title)}</div>
-                      {video.singerName ? (
+                      <div className="truncate">{nextVideo.title}</div>
+                      {nextVideo.singerName ? (
                         <div className="truncate text-sm font-normal text-white/70">
-                          {video.singerName}
+                          {nextVideo.singerName}
                         </div>
                       ) : null}
                     </div>
-                  </li>
-                ))}
-              </ul>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+                  ) : (
+                    esMX.party.playlistEmpty
+                  )}
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <ul className="divide-y divide-accent-foreground">
+                  {nextVideos.slice(1).map((video) => (
+                    <li key={video.id} className="p-2 first:pt-0 last:pb-0">
+                      <div className="min-w-0 text-left">
+                        <div className="truncate">{decode(video.title)}</div>
+                        {video.singerName ? (
+                          <div className="truncate text-sm font-normal text-white/70">
+                            {video.singerName}
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+
+        <div className="flex w-full justify-center bg-black/80">
+          <div className="flex shrink-0 items-center gap-8 self-center rounded-full border border-white/10 bg-black/70 px-2 py-1 shadow-xl backdrop-blur">
+            <div className="flex items-center">
+              <button
+                type="button"
+                className="rounded-full bg-yellow-200 p-2 text-black shadow-lg hover:bg-red-700 hover:text-white"
+                onClick={sendHorn}
+              >
+                <Megaphone size={32} />
+              </button>
+            </div>
+
+            {role === "COHOST" && (
+              <div className="flex items-center gap-2">
+                <button type="button" className="btn btn-secondary" onClick={sendPlay}>
+                  <Play className="mr-2 h-4 w-4" />
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={sendPause}>
+                  <Pause className="mr-2 h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendSkip}
+                  disabled={!nextVideo}
+                >
+                  <SkipForward className="mr-2 h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendToggleFullscreen}
+                >
+                  <Maximize className="mr-2 h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </>
   );
