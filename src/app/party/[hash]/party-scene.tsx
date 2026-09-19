@@ -288,16 +288,39 @@ export function PartyScene({
         <Accordion type="single" collapsible className="max-h-screen w-full">
           <AccordionItem value="item-1" className="border-0">
             <AccordionTrigger disabled={nextVideos.length < 2}>
-              <div className="flex flex-row">
+              <div className="flex min-w-0 flex-row items-center">
                 <ListMusic className="mr-3" />
-                {nextVideo ? nextVideo.title : esMX.party.playlistEmpty}
+                {nextVideo ? (
+                  <span className="mr-2 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/15 text-white/90">
+                    <Play className="h-3 w-3 fill-current" aria-hidden="true" />
+                  </span>
+                ) : null}
+                {nextVideo ? (
+                  <div className="min-w-0 text-left">
+                    <div className="truncate">{nextVideo.title}</div>
+                    {nextVideo.singerName ? (
+                      <div className="truncate text-sm font-normal text-white/70">
+                        {nextVideo.singerName}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  esMX.party.playlistEmpty
+                )}
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <ul className="divide-y divide-accent-foreground">
                 {nextVideos.slice(1).map((video) => (
                   <li key={video.id} className="p-2 first:pt-0 last:pb-0">
-                    {decode(video.title)}
+                    <div className="min-w-0 text-left">
+                      <div className="truncate">{decode(video.title)}</div>
+                      {video.singerName ? (
+                        <div className="truncate text-sm font-normal text-white/70">
+                          {video.singerName}
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
