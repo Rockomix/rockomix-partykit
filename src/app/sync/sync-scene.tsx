@@ -30,6 +30,85 @@ type SyncYouTubePlayer = {
 
 type ReadyEvent = { target: SyncYouTubePlayer };
 
+type SyncDiagContext = Record<string, unknown>;
+
+function syncDiagError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      errorMessage: error.message,
+      errorName: error.name,
+      errorStack: error.stack,
+    };
+  }
+
+  return {
+    errorMessage: String(error),
+    errorName: typeof error,
+    errorStack: undefined,
+  };
+}
+
+function syncDiagLog(event: string, context: SyncDiagContext = {}) {
+  console.warn("SYNC_DIAG", event, {
+    timestamp: new Date().toISOString(),
+    ...context,
+  });
+}
+
+function syncDiagCall<T>(
+  operation: string,
+  call: () => T,
+  context: () => SyncDiagContext,
+  options: {
+    logStart?: boolean;
+    logResolved?: boolean;
+  } = {},
+) {
+  if (options.logStart !== false) {
+    syncDiagLog(`youtube ${operation} START`, context());
+  }
+
+  try {
+    const result = call();
+
+    if (
+      result !== null &&
+      typeof result === "object" &&
+      "then" in result &&
+      typeof result.then === "function"
+    ) {
+      void Promise.resolve(result).then(
+        () => {
+          if (options.logResolved !== false) {
+            syncDiagLog(`youtube ${operation} RESOLVED`, context());
+          }
+        },
+        (error: unknown) => {
+          syncDiagLog(`youtube ${operation} REJECTED`, {
+            ...context(),
+            ...syncDiagError(error),
+          });
+        },
+      );
+    } else {
+      if (options.logResolved !== false) {
+        syncDiagLog(`youtube ${operation} RESOLVED`, {
+          ...context(),
+          result,
+        });
+      }
+    }
+
+    return result;
+  } catch (error) {
+    syncDiagLog(`youtube ${operation} REJECTED`, {
+      ...context(),
+      ...syncDiagError(error),
+    });
+    throw error;
+  }
+}
+
 // SINGER_SYNC: mismo video institucional utilizado por PlayerScene normal.
 const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
 
@@ -82,6 +161,7 @@ function applyPlaybackState(
   player: SyncYouTubePlayer,
   state: SyncState,
   clockOffsetMs: number,
+  diagContext: () => SyncDiagContext,
 ) {
   const correctedNow = Date.now() - clockOffsetMs;
   const expectedPosition =
@@ -89,10 +169,29 @@ function applyPlaybackState(
     (state.isPlaying
       ? (correctedNow - state.serverTimestamp) / 1000
       : 0);
-  player.setPlaybackRate?.(1);
-  void player.seekTo(expectedPosition, true);
-  if (state.isPlaying) void player.playVideo();
-  else void player.pauseVideo();
+  syncDiagCall(
+    "setPlaybackRate",
+    () => player.setPlaybackRate?.(1),
+    diagContext,
+  );
+  void syncDiagCall(
+    "seekTo",
+    () => player.seekTo(expectedPosition, true),
+    diagContext,
+  );
+  if (state.isPlaying) {
+    void syncDiagCall(
+      "playVideo",
+      () => player.playVideo(),
+      diagContext,
+    );
+  } else {
+    void syncDiagCall(
+      "pauseVideo",
+      () => player.pauseVideo(),
+      diagContext,
+    );
+  }
 }
 
 export default function SyncScene() {
@@ -240,6 +339,7 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
   const driftCorrectionModeRef = useRef<"idle" | "soft" | "hard-seek">("idle");
   const hardSeekInFlightRef = useRef(false);
   const hardSeekNextAttemptAtRef = useRef(0);
+  const heartbeatPingTimestampsRef = useRef(new Set<number>());
   const requestedPlaybackRateRef = useRef(1);
   const appliedPlaybackRateRef = useRef<number | null>(1);
   const availablePlaybackRatesRef = useRef<number[]>([1]);
@@ -249,6 +349,16 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
   const recompositionTimerRef = useRef<number | null>(null);
   const syncStateRef = useRef<SyncState | null>(null);
   const currentPlaylistVideoIdRef = useRef<string | null>(null);
+  const driftDiagTickRef = useRef(0);
+
+  const getSyncDiagContext = (videoId?: string): SyncDiagContext => ({
+    videoId: videoId ?? syncStateRef.current?.videoId ?? preparedVideoId,
+    syncStateVideoId: syncStateRef.current?.videoId,
+    connected,
+    clockOffsetReady,
+    playerReadyVideoId: playerReadyVideoIdRef.current,
+    socketReadyState: socket.readyState,
+  });
 
   useEffect(() => {
     syncStateRef.current = syncState;
@@ -259,12 +369,19 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
     room: roomId,
     query: { role: "guest" },
     onOpen() {
+      syncDiagLog("socket OPEN", {
+        socketReadyState: socket.readyState,
+        videoId: syncStateRef.current?.videoId ?? preparedVideoId,
+        connected,
+        syncStateVideoId: syncStateRef.current?.videoId,
+      });
       if (clockCalibrationTimerRef.current !== null) {
         window.clearInterval(clockCalibrationTimerRef.current);
         clockCalibrationTimerRef.current = null;
       }
       clockCalibrationSamplesRef.current = [];
       pendingPingTimestampsRef.current.clear();
+      heartbeatPingTimestampsRef.current.clear();
       clockCalibrationActiveRef.current = false;
       clockOffsetMsRef.current = 0;
       setClockOffsetReady(false);
@@ -272,7 +389,27 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
       setConnected(true);
     },
     onClose() {
+      syncDiagLog("socket CLOSE", {
+        socketReadyState: socket.readyState,
+        videoId: syncStateRef.current?.videoId ?? preparedVideoId,
+        connected,
+        syncStateVideoId: syncStateRef.current?.videoId,
+      });
       setConnected(false);
+    },
+    onError(error) {
+      const socketError = error as unknown as {
+        message?: unknown;
+        error?: unknown;
+      };
+      const errorDetails = syncDiagError(socketError.error ?? error);
+      syncDiagLog("socket ERROR", {
+        socketReadyState: socket.readyState,
+        videoId: syncStateRef.current?.videoId ?? preparedVideoId,
+        connected,
+        syncStateVideoId: syncStateRef.current?.videoId,
+        ...errorDetails,
+      });
     },
     onMessage(event) {
       const parsed = JSON.parse(event.data as string) as unknown;
@@ -343,6 +480,23 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
         typeof message.clientSentAt === "number" &&
         typeof message.serverTimestamp === "number"
       ) {
+        const calibrationPing = pendingPingTimestampsRef.current.has(
+          message.clientSentAt,
+        );
+        const heartbeatPing = heartbeatPingTimestampsRef.current.has(
+          message.clientSentAt,
+        );
+        syncDiagLog("sync-pong RECEIVED", {
+          ...getSyncDiagContext(message.videoId),
+          clientSentAt: message.clientSentAt,
+          serverTimestamp: message.serverTimestamp,
+          mode: calibrationPing
+            ? "CALIBRATION"
+            : heartbeatPing
+              ? "HEARTBEAT"
+              : "UNKNOWN",
+        });
+        heartbeatPingTimestampsRef.current.delete(message.clientSentAt);
         if (
           !clockCalibrationActiveRef.current ||
           !pendingPingTimestampsRef.current.has(message.clientSentAt)
@@ -389,12 +543,49 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
   });
 
   useEffect(() => {
+    const handleWindowError = (event: ErrorEvent) => {
+      const windowError = event as unknown as { error?: unknown };
+      syncDiagLog("GLOBAL error", {
+        ...getSyncDiagContext(),
+        ...syncDiagError(windowError.error ?? event),
+        eventMessage: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+      });
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      syncDiagLog("GLOBAL unhandledrejection", {
+        ...getSyncDiagContext(),
+        ...syncDiagError(event.reason),
+      });
+    };
+
+    window.addEventListener("error", handleWindowError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener("error", handleWindowError);
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection,
+      );
+    };
+  });
+
+  useEffect(() => {
     if (!connected) return;
 
     const sendCalibrationPing = () => {
       if (socket.readyState === WebSocket.OPEN) {
         const clientSentAt = Date.now();
         pendingPingTimestampsRef.current.add(clientSentAt);
+        syncDiagLog("sync-ping SEND", {
+          ...getSyncDiagContext(),
+          mode: "CALIBRATION",
+          clientSentAt,
+        });
         socket.send(JSON.stringify({ type: "sync-ping", clientSentAt }));
       }
     };
@@ -422,7 +613,14 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
 
     const sendHeartbeatPing = () => {
       if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "sync-ping", clientSentAt: Date.now() }));
+        const clientSentAt = Date.now();
+        heartbeatPingTimestampsRef.current.add(clientSentAt);
+        syncDiagLog("heartbeat SEND", {
+          ...getSyncDiagContext(),
+          mode: "HEARTBEAT",
+          clientSentAt,
+        });
+        socket.send(JSON.stringify({ type: "sync-ping", clientSentAt }));
       }
     };
 
@@ -448,7 +646,37 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
         return;
       }
 
-      const currentTime = player.getCurrentTime();
+      driftDiagTickRef.current += 1;
+      const shouldLogDriftStart = driftDiagTickRef.current % 40 === 0;
+      if (shouldLogDriftStart) {
+        syncDiagLog("drift getCurrentTime START", {
+          ...getSyncDiagContext(syncState.videoId),
+          expectedPosition: expected,
+          isPlaying: syncState.isPlaying,
+        });
+      }
+
+      let currentTime: number | Promise<number>;
+      try {
+        currentTime = syncDiagCall(
+          "drift getCurrentTime",
+          () => player.getCurrentTime(),
+          () => ({
+            ...getSyncDiagContext(syncState.videoId),
+            expectedPosition: expected,
+            isPlaying: syncState.isPlaying,
+          }),
+          { logStart: false, logResolved: false },
+        );
+      } catch (error) {
+        syncDiagLog("drift getCurrentTime REJECTED", {
+          ...getSyncDiagContext(syncState.videoId),
+          expectedPosition: expected,
+          isPlaying: syncState.isPlaying,
+          ...syncDiagError(error),
+        });
+        return;
+      }
       const processPosition = (position: number) => {
         setActualPosition(position);
 
@@ -463,8 +691,16 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
             return false;
           }
 
-          player.setPlaybackRate(requestedRate);
-          const effectiveRate = player.getPlaybackRate?.();
+          syncDiagCall(
+            "setPlaybackRate",
+            () => player.setPlaybackRate?.(requestedRate),
+            () => getSyncDiagContext(syncState.videoId),
+          );
+          const effectiveRate = syncDiagCall(
+            "getPlaybackRate",
+            () => player.getPlaybackRate?.(),
+            () => getSyncDiagContext(syncState.videoId),
+          );
           appliedPlaybackRateRef.current =
             typeof effectiveRate === "number" ? effectiveRate : null;
           return appliedPlaybackRateRef.current === requestedRate;
@@ -492,11 +728,26 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
             setPlaybackRate(1);
 
             try {
-              const seekResult = player.seekTo(expected, true);
+              const seekResult = syncDiagCall(
+                "seekTo",
+                () => player.seekTo(expected, true),
+                () => getSyncDiagContext(syncState.videoId),
+              );
               void Promise.resolve(seekResult)
                 .then(() => {
-                  if (syncState.isPlaying) void player.playVideo();
-                  else void player.pauseVideo();
+                  if (syncState.isPlaying) {
+                    void syncDiagCall(
+                      "playVideo",
+                      () => player.playVideo(),
+                      () => getSyncDiagContext(syncState.videoId),
+                    );
+                  } else {
+                    void syncDiagCall(
+                      "pauseVideo",
+                      () => player.pauseVideo(),
+                      () => getSyncDiagContext(syncState.videoId),
+                    );
+                  }
                 })
                 .catch(() => undefined)
                 .finally(() => {
@@ -541,8 +792,32 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
       };
 
       if (currentTime instanceof Promise) {
-        void currentTime.then(processPosition);
+        void currentTime.then(
+          (position) => {
+            if (shouldLogDriftStart) {
+              syncDiagLog("drift getCurrentTime RESOLVED", {
+                ...getSyncDiagContext(syncState.videoId),
+                position,
+              });
+            }
+            processPosition(position);
+          },
+          (error: unknown) => {
+            syncDiagLog("drift getCurrentTime REJECTED", {
+              ...getSyncDiagContext(syncState.videoId),
+              expectedPosition: expected,
+              isPlaying: syncState.isPlaying,
+              ...syncDiagError(error),
+            });
+          },
+        );
       } else {
+        if (shouldLogDriftStart) {
+          syncDiagLog("drift getCurrentTime RESOLVED", {
+            ...getSyncDiagContext(syncState.videoId),
+            position: currentTime,
+          });
+        }
         processPosition(currentTime);
       }
     }, 250);
@@ -585,9 +860,19 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
     let readInProgress = false;
 
     const readPosition = (onRead: (actualPosition: number) => void) => {
-      const currentTime = player.getCurrentTime();
+      const currentTime = syncDiagCall(
+        "recomposition getCurrentTime",
+        () => player.getCurrentTime(),
+        () => getSyncDiagContext(state.videoId),
+        { logStart: false, logResolved: false },
+      );
       if (currentTime instanceof Promise) {
-        void currentTime.then(onRead);
+        void currentTime.then(onRead, (error: unknown) => {
+          syncDiagLog("recomposition getCurrentTime REJECTED", {
+            ...getSyncDiagContext(state.videoId),
+            ...syncDiagError(error),
+          });
+        });
       } else {
         onRead(currentTime);
       }
@@ -625,7 +910,13 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
         }
 
         // SINGER_SYNC: una sola correccion; no hay segunda recomposicion ni playbackRate.
-        void Promise.resolve(player.seekTo(expectedPosition, true)).then(() => {
+        void Promise.resolve(
+          syncDiagCall(
+            "recomposition seekTo",
+            () => player.seekTo(expectedPosition, true),
+            () => getSyncDiagContext(state.videoId),
+          ),
+        ).then(() => {
           // SINGER_SYNC: no se realiza ninguna correccion posterior.
         });
       });
@@ -650,16 +941,33 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
       return;
     }
     if (appliedVideoIdRef.current !== syncState.videoId) {
-      applyPlaybackState(playerRef.current, syncState, clockOffsetMsRef.current);
+      applyPlaybackState(
+        playerRef.current,
+        syncState,
+        clockOffsetMsRef.current,
+        () => getSyncDiagContext(syncState.videoId),
+      );
       appliedVideoIdRef.current = syncState.videoId;
     } else if (syncState.isPlaying) {
-      void playerRef.current.playVideo();
+      void syncDiagCall(
+        "playVideo",
+        () => playerRef.current!.playVideo(),
+        () => getSyncDiagContext(syncState.videoId),
+      );
     } else {
-      playerRef.current.setPlaybackRate?.(1);
+      syncDiagCall(
+        "setPlaybackRate",
+        () => playerRef.current!.setPlaybackRate?.(1),
+        () => getSyncDiagContext(syncState.videoId),
+      );
       requestedPlaybackRateRef.current = 1;
       appliedPlaybackRateRef.current = 1;
       driftCorrectionModeRef.current = "idle";
-      void playerRef.current.pauseVideo();
+      void syncDiagCall(
+        "pauseVideo",
+        () => playerRef.current!.pauseVideo(),
+        () => getSyncDiagContext(syncState.videoId),
+      );
     }
   }, [syncState, clockOffsetReady]);
 
@@ -721,19 +1029,32 @@ function ConnectedSyncRoom({ roomId }: { roomId: string }) {
                   const player = event.target;
                   if (!player) return;
                   playerRef.current = player;
-                  const availableRates = player.getAvailablePlaybackRates?.();
+                  const availableRates = syncDiagCall(
+                    "getAvailablePlaybackRates",
+                    () => player.getAvailablePlaybackRates?.(),
+                    () => getSyncDiagContext(syncState?.videoId ?? preparedVideoId ?? undefined),
+                  );
                   availablePlaybackRatesRef.current =
                     availableRates && availableRates.length > 0
                       ? availableRates
                       : [1];
                   requestedPlaybackRateRef.current = 1;
-                  const effectiveRate = player.getPlaybackRate?.();
+                  const effectiveRate = syncDiagCall(
+                    "getPlaybackRate",
+                    () => player.getPlaybackRate?.(),
+                    () => getSyncDiagContext(playerReadyVideoIdRef.current ?? undefined),
+                  );
                   appliedPlaybackRateRef.current =
                     typeof effectiveRate === "number" ? effectiveRate : 1;
                   playerReadyVideoIdRef.current =
                     syncState?.videoId ?? preparedVideoId;
                   if (syncState && clockOffsetReady) {
-                    applyPlaybackState(player, syncState, clockOffsetMsRef.current);
+                    applyPlaybackState(
+                      player,
+                      syncState,
+                      clockOffsetMsRef.current,
+                      () => getSyncDiagContext(syncState.videoId),
+                    );
                   }
                   // SINGER_SYNC: si aun no existe referencia temporal, forzar apply al recibirla.
                   appliedVideoIdRef.current = syncState?.videoId ?? null;
