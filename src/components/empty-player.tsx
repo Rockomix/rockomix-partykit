@@ -1,6 +1,7 @@
 import { QrCode } from "./qr-code";
 import { cn } from "~/lib/utils";
 import { LogoBrand } from "./logo-brand";
+import { toast } from "sonner";
 
 type Props = {
   joinPartyUrl: string;
@@ -8,6 +9,12 @@ type Props = {
 };
 
 export function EmptyPlayer({ joinPartyUrl, className }: Props) {
+  const copyRoomHash = async () => {
+    const hash = joinPartyUrl.split("/").pop() ?? "";
+    await navigator.clipboard.writeText(hash);
+    toast.success("ID copiado", { duration: 3000 });
+  };
+
   return (
     <div
       className={cn(
@@ -22,7 +29,15 @@ export function EmptyPlayer({ joinPartyUrl, className }: Props) {
         />
       </div>
       <div className="relative flex w-full basis-1/4 items-end text-center">
-        <QrCode url={joinPartyUrl} />
+        <div className="flex flex-col items-center">
+          <button
+            type="button"
+            onClick={() => void copyRoomHash()}
+          >
+            ID Sala: {joinPartyUrl.split("/").pop()}
+          </button>
+          <QrCode url={joinPartyUrl} />
+        </div>
         <a
           href={joinPartyUrl}
           target="_blank"

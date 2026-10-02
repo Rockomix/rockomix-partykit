@@ -60,6 +60,14 @@ type KaraokeParty = {
 	};
 };
 
+// SINGER_SYNC: estado temporal independiente de playlist y roles.
+type SyncPlaybackState = {
+	videoId: string;
+	position: number;
+	isPlaying: boolean;
+	serverTimestamp: number;
+};
+
 const AddVideoSchema = z.object({
 	type: z.literal("add-video"),
 	id: z.string(),
@@ -85,6 +93,19 @@ const HornSchema = z.object({
 	type: z.literal("horn"),
 });
 
+// SINGER_SYNC: mensajes aditivos para el laboratorio de sincronizacion.
+const SyncPlaybackSchema = z.object({
+	type: z.literal("sync-playback"),
+	videoId: z.string(),
+	position: z.number().nonnegative(),
+	isPlaying: z.boolean(),
+});
+
+const SyncPingSchema = z.object({
+	type: z.literal("sync-ping"),
+	clientSentAt: z.number(),
+});
+
 const PlaySchema = z.object({
 	type: z.literal("play"),
 });
@@ -105,6 +126,8 @@ const MessageSchema = z.discriminatedUnion("type", [
 	PauseSchema,
 	ToggleFullscreenSchema,
 	HornSchema,
+	SyncPlaybackSchema,
+	SyncPingSchema,
 ]);
 
 const INITIAL_KARAOKE_PARTY: KaraokeParty = {
@@ -116,9 +139,12 @@ const INITIAL_KARAOKE_PARTY: KaraokeParty = {
 
 export class PartyRoom extends Server {
 	karaokeParty: KaraokeParty | undefined;
+	// SINGER_SYNC: se persiste solo el snapshot temporal de reproduccion.
+	syncPlayback: SyncPlaybackState | undefined;
 
 	override async onStart() {
 		this.karaokeParty = await this.ctx.storage.get<KaraokeParty>("karaokeParty");
+		this.syncPlayback = await this.ctx.storage.get<SyncPlaybackState>("syncPlayback");
 	}
 
 	override async onRequest(request: Request) {
@@ -167,6 +193,14 @@ export class PartyRoom extends Server {
 			}),
 		);
 
+		// SINGER_SYNC: un cliente tardio recibe la referencia temporal actual.
+		if (this.syncPlayback) {
+			connection.send(JSON.stringify({
+				type: "sync-state",
+				...this.syncPlayback,
+			}));
+		}
+
 		connection.send(
 			JSON.stringify({
 				type: "role-assigned",
@@ -204,6 +238,29 @@ export class PartyRoom extends Server {
 		const data = result.data;
 		const state = connection.state as { role?: ClientRole } | null;
 		const role = state?.role;
+
+		// SINGER_SYNC: el servidor marca el compas y retransmite el snapshot.
+		if (data.type === "sync-ping") {
+			connection.send(JSON.stringify({
+				type: "sync-pong",
+				clientSentAt: data.clientSentAt,
+				serverTimestamp: Date.now(),
+			}));
+			return;
+		}
+
+		if (data.type === "sync-playback") {
+			if (role !== "HOST") return;
+			this.syncPlayback = {
+				videoId: data.videoId,
+				position: data.position,
+				isPlaying: data.isPlaying,
+				serverTimestamp: Date.now(),
+			};
+			await this.ctx.storage.put("syncPlayback", this.syncPlayback);
+			this.broadcast(JSON.stringify({ type: "sync-state", ...this.syncPlayback }));
+			return;
+		}
 
 		switch (data.type) {
 			case "play": {

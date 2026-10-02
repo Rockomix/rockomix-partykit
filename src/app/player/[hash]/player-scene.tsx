@@ -92,6 +92,12 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     },
   });
 
+  // SINGER_SYNC: envia muestras del Host sin cambiar los mensajes normales.
+  const sendSyncPlayback = (videoId: string, sample: { position: number; isPlaying: boolean }) => {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ type: "sync-playback", videoId, ...sample }));
+  };
+
   const { ref, toggle, fullscreen } = useFullscreen();
 
   useEffect(() => {
@@ -150,6 +156,18 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
   const currentVideo = playlist.find((video) => !video.playedAt);
   const nextVideos = playlist.filter((video) => !video.playedAt);
+
+  // SINGER_SYNC: heartbeat de telemetria, sin correccion de drift.
+  useEffect(() => {
+    const heartbeat = window.setInterval(() => {
+      if (!currentVideo) return;
+      const samplePromise = playerActionsRef.current?.getPlaybackSample();
+      if (samplePromise) {
+        void samplePromise.then((sample) => sendSyncPlayback(currentVideo.id, sample));
+      }
+    }, 30_000);
+    return () => window.clearInterval(heartbeat);
+  }, [currentVideo?.id, socket]);
 
   useEffect(() => {
     if (currentVideo) {
@@ -257,6 +275,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                   markAsPlayed();
                 }}
                 onTogglePlayPauseRef={togglePlayPauseRef}
+                onPlaybackSample={(sample) => sendSyncPlayback(currentVideo.id, sample)}
               />
             ) : !waitingVideoDismissed ? (
               <Player

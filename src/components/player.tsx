@@ -14,6 +14,7 @@ import YouTube, { type YouTubeProps, type YouTubePlayer } from "react-youtube";
 import { QrCode } from "./qr-code";
 import { type VideoInPlaylist } from "party";
 import { decode } from "html-entities";
+import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 import { Button } from "./ui/ui/button";
 import { MicVocal, SkipForward, Youtube } from "lucide-react";
@@ -28,6 +29,8 @@ type Props = {
   onPlayerEnd: () => void;
   onTogglePlayPauseRef?: React.MutableRefObject<(() => void) | null>;
   isWaiting?: boolean;
+  // SINGER_SYNC: solo informa telemetria; no modifica los controles normales.
+  onPlaybackSample?: (sample: { position: number; isPlaying: boolean }) => void;
 };
 
 export type PlayerActions = {
@@ -35,6 +38,7 @@ export type PlayerActions = {
   pause: () => void;
   skip: () => void;
   toggle: () => void;
+  getPlaybackSample: () => Promise<{ position: number; isPlaying: boolean }>;
 };
 
 export const Player = forwardRef<PlayerActions, Props>(function Player(
@@ -45,6 +49,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     onPlayerEnd,
     onTogglePlayPauseRef,
     isWaiting = false,
+    onPlaybackSample,
   }: Props,
   ref,
 ) {
@@ -99,6 +104,11 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   }, [isReady]);
 
+  const getPlaybackSample = useCallback(async () => ({
+    position: (await playerRef.current?.getCurrentTime?.()) ?? 0,
+    isPlaying: (await playerRef.current?.getPlayerState?.()) === 1,
+  }), []);
+
   const skip = useCallback(() => {
     onPlayerEnd();
   }, [onPlayerEnd]);
@@ -110,8 +120,9 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       pause,
       skip,
       toggle: togglePlayPause,
+      getPlaybackSample,
     }),
-    [pause, play, skip, togglePlayPause],
+    [getPlaybackSample, pause, play, skip, togglePlayPause],
   );
 
   const opts: YouTubeProps["opts"] = {
@@ -154,12 +165,15 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
 
   const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {
     console.log("handlePlay");
+
     setIsPlaying(true);
+    void getPlaybackSample().then((sample) => onPlaybackSample?.(sample));
   };
 
   const onPlayerPause: YouTubeProps["onPause"] = (_event) => {
     console.log("handlePause");
     setIsPlaying(false);
+    void getPlaybackSample().then((sample) => onPlaybackSample?.(sample));
   };
 
   const onPlayerError: YouTubeProps["onError"] = (_event) => {
@@ -176,6 +190,12 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     if (onPlayerEnd) {
       onPlayerEnd();
     }
+  };
+
+  const copyRoomHash = async () => {
+    const hash = joinPartyUrl.split("/").pop() ?? "";
+    await navigator.clipboard.writeText(hash);
+    toast.success("ID copiado", { duration: 3000 });
   };
 
   if (showOpenInYouTubeButton) {
@@ -324,6 +344,9 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
 
       <div className="absolute bottom-12 left-0 z-10 flex w-full flex-row justify-between px-4">
         <div className="relative top-10 flex flex-col items-center">
+          <button type="button" onClick={() => void copyRoomHash()}>
+            ID Sala: {joinPartyUrl.split("/").pop()}
+          </button>
           <QrCode url={joinPartyUrl} />
           {isPlaying && (
             <span className="font-bold tracking-wide text-white/75">
