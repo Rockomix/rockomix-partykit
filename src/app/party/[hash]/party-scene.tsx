@@ -31,6 +31,7 @@ import { esMX } from "~/locales/es-MX";
 import { AppTextBrand } from "~/components/app-text-brand";
 import { InvitePartyDialog } from "~/components/invite-party-dialog";
 import { getUrl } from "~/utils/url";
+import { recordDiagnostic } from "~/lib/diagnostics";
 
 function getTitleSizeClass(title: string) {
   const length = title.trim().length;
@@ -68,6 +69,15 @@ export function PartyScene({
   const previousScrollTopRef = useRef(0);
   const [isBrandScrolled, setIsBrandScrolled] = useState(false);
   const [isPlaylistVisible, setIsPlaylistVisible] = useState(true);
+
+  const diag = (event: string, context: Record<string, unknown> = {}, error?: unknown) => {
+    recordDiagnostic({ event: `party.${event}`, component: "PartyScene", roomId: party.hash ?? undefined, role, sessionId: ensureSessionId(), context, error });
+  };
+
+  useEffect(() => {
+    diag("mount", { initialPlaylistCount: initialPlaylist?.playlist?.length ?? 0 });
+    return () => diag("unmount");
+  }, []);
 
   useEffect(() => {
     const content = contentScrollRef.current;
@@ -119,12 +129,23 @@ export function PartyScene({
       role: "guest",
       sessionId: ensureSessionId(),
     },
+    onOpen() {
+      diag("socket.connected", { readyState: socket.readyState });
+    },
+    onClose() {
+      diag("socket.disconnected", { readyState: socket.readyState });
+    },
+    onError(error) {
+      diag("socket.error", {}, error);
+    },
     onMessage(event) {
+      diag("socket.message.received", { bytes: typeof event.data === "string" ? event.data.length : undefined });
       try {
         const eventData = JSON.parse(event.data);
 
         if (eventData.type === "role-assigned") {
           setRole(eventData.role);
+          diag("role.assigned", { assignedRole: eventData.role });
 
           if (eventData.role === "COHOST" && eventData.message) {
             toast.success(eventData.message);
@@ -134,23 +155,34 @@ export function PartyScene({
         }
 
         if (eventData.type === "horn") {
+          diag("socket.message.ignored", { type: "horn" });
           return;
         }
 
         if (Array.isArray(eventData)) {
           setPlaylist(eventData);
+          diag("playlist.updated", { count: eventData.length });
+        } else {
+          diag("socket.message.ignored", { type: eventData?.type });
         }
       } catch (error) {
+        diag("socket.message.error", {}, error);
         console.error("Error parsing message:", error);
       }
     },
   });
 
   const sendSocketMessage = (message: Message) => {
-    socket.send(JSON.stringify(message));
+    try {
+      socket.send(JSON.stringify(message));
+    } catch (error) {
+      diag("action.error", { action: message.type }, error);
+      throw error;
+    }
   };
 
   const addSong = async (videoId: string, title: string, coverUrl: string) => {
+    diag("cohost.action.add-song", { videoId, titleLength: title.length, hasCoverUrl: Boolean(coverUrl) });
     sendSocketMessage({
       type: "add-video",
       id: videoId,
@@ -161,26 +193,31 @@ export function PartyScene({
   };
 
   const sendHorn = async () => {
+    diag("action.horn");
     sendSocketMessage({
       type: "horn",
     } satisfies Message);
   };
 
   const sendPlay = () => {
+    diag("cohost.action.play");
     sendSocketMessage({ type: "play" } as Message);
   };
 
   const sendPause = () => {
+    diag("cohost.action.pause");
     sendSocketMessage({ type: "pause" } as Message);
   };
 
   const sendToggleFullscreen = () => {
+    diag("cohost.action.toggle-fullscreen");
     sendSocketMessage({ type: "toggle-fullscreen" } satisfies Message);
   };
 
   const sendSkip = () => {
     if (!nextVideo) return;
 
+    diag("cohost.action.skip", { videoId: nextVideo.id });
     sendSocketMessage({
       type: "mark-as-played",
       id: nextVideo.id,

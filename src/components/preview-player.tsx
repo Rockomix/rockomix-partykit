@@ -11,6 +11,7 @@ import {
   type MediaProviderAdapter,
   type MediaProviderChangeEvent,
 } from "@vidstack/react";
+import { recordDiagnostic } from "~/lib/diagnostics";
 
 export function PreviewPlayer({
   videoId,
@@ -24,19 +25,33 @@ export function PreviewPlayer({
   const player = useRef<MediaPlayerInstance>(null);
 
   useEffect(() => {
+    recordDiagnostic({ event: "preview.mount", component: "PreviewPlayer", context: { videoId, hasTitle: Boolean(title), hasThumbnail: Boolean(thumbnail) } });
+    recordDiagnostic({ event: "preview.effect.start", component: "PreviewPlayer", context: { videoId, playerCurrent: Boolean(player.current) } });
     // Subscribe to state updates.
-    return player.current!.subscribe(
-      ({ paused: _paused, viewType: _viewType }) => {
-        // console.log('is paused?', '->', state.paused);
-        // console.log('is audio view?', '->', state.viewType === 'audio');
-      },
-    );
+    try {
+      recordDiagnostic({ event: "preview.subscribe.start", component: "PreviewPlayer", context: { videoId, playerCurrent: Boolean(player.current) } });
+      const unsubscribe = player.current!.subscribe(
+        ({ paused: _paused, viewType: _viewType }) => {
+          // console.log('is paused?', '->', state.paused);
+          // console.log('is audio view?', '->', state.viewType === 'audio');
+        },
+      );
+      recordDiagnostic({ event: "preview.subscribe.success", component: "PreviewPlayer", context: { videoId } });
+      return () => {
+        recordDiagnostic({ event: "preview.unmount", component: "PreviewPlayer", context: { videoId } });
+        return unsubscribe();
+      };
+    } catch (error) {
+      recordDiagnostic({ event: "preview.subscribe.failed", level: "error", component: "PreviewPlayer", error, context: { videoId } });
+      throw error;
+    }
   }, []);
 
   function onProviderChange(
     provider: MediaProviderAdapter | null,
     _nativeEvent: MediaProviderChangeEvent,
   ) {
+    recordDiagnostic({ event: "preview.provider", component: "PreviewPlayer", context: { videoId, provider: provider ? provider.constructor?.name : null } });
     // We can configure provider's here.
     if (isHLSProvider(provider)) {
       provider.config = {};

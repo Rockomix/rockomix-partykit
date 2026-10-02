@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "~/trpc/react";
 import { Plus, Search, Check, Loader2, Frown } from "lucide-react";
 import type { KaraokeParty } from "party";
@@ -10,6 +10,7 @@ import { Button } from "./ui/ui/button";
 import { Skeleton } from "./ui/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "./ui/ui/alert";
 import { esMX } from "~/locales/es-MX";
+import { recordDiagnostic } from "~/lib/diagnostics";
 
 type Props = {
   onVideoAdded: (videoId: string, title: string, coverUrl: string) => void;
@@ -29,12 +30,17 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
       { refetchOnWindowFocus: false, enabled: false, retry: false },
     );
 
+  useEffect(() => {
+    if (isFetched) recordDiagnostic({ event: isError ? "song-search.error" : "song-search.success", level: isError ? "error" : "info", component: "SongSearch", context: { resultCount: data?.length ?? 0, queryLength: videoInputValue.length, includeKaraoke } });
+  }, [data, includeKaraoke, isError, isFetched, videoInputValue.length]);
+
   // const [canPlayVideos, setCanPlayVideos] = useState<string[]>([]);
 
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
+        recordDiagnostic({ event: "song-search.start", component: "SongSearch", context: { queryLength: videoInputValue.length, includeKaraoke } });
         await refetch();
         setCanFetch(false);
       }}
@@ -146,11 +152,15 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
                     className="shadow-xl animate-in spin-in"
                     disabled={alreadyAdded}
                     onClick={() =>
-                      onVideoAdded(
-                        video.id.videoId,
-                        removeBracketedContent(video.snippet.title),
-                        video.snippet.thumbnails.high.url,
-                      )
+                      (() => {
+                        recordDiagnostic({ event: "song-search.add-attempt", component: "SongSearch", context: { videoId: video.id.videoId, hasTitle: Boolean(video.snippet?.title), hasThumbnail: Boolean(video.snippet?.thumbnails?.high?.url) } });
+                        try {
+                          onVideoAdded(video.id.videoId, removeBracketedContent(video.snippet.title), video.snippet.thumbnails.high.url);
+                        } catch (error) {
+                          recordDiagnostic({ event: "song-search.add-failed", level: "error", component: "SongSearch", error, context: { videoId: video.id.videoId } });
+                          throw error;
+                        }
+                      })()
                     }
                   >
                     {alreadyAdded ? <Check stroke="pink" /> : <Plus />}

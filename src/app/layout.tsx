@@ -8,6 +8,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { AxiomWebVitals } from "next-axiom";
 import { Toaster } from "~/components/ui/ui/sonner";
+import { DiagnosticsProvider } from "~/components/diagnostics-provider";
 
 const APP_NAME = "My Karaoke Party";
 const APP_DEFAULT_TITLE = "My Karaoke Party";
@@ -77,7 +78,9 @@ export default function RootLayout({
       className={`theme-custom ${roboto_slab.variable} ${roboto_mono.variable}`}
     >
       <body className="bg-gradient min-h-screen">
-        <TRPCReactProvider>{children}</TRPCReactProvider>
+        <DiagnosticsProvider>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+        </DiagnosticsProvider>
         <Analytics />
         <SpeedInsights />
         <AxiomWebVitals />

@@ -10,6 +10,7 @@ import { LogoBrand } from "~/components/logo-brand";
 import { Input } from "~/components/ui/ui/input";
 import { ButtonHoverGradient } from "~/components/ui/ui/button-hover-gradient";
 import { api } from "~/trpc/react";
+import { recordDiagnostic } from "~/lib/diagnostics";
 
 type SyncState = {
   videoId: string;
@@ -49,9 +50,11 @@ function syncDiagError(error: unknown) {
 }
 
 function syncDiagLog(event: string, context: SyncDiagContext = {}) {
-  console.warn("SYNC_DIAG", event, {
-    timestamp: new Date().toISOString(),
-    ...context,
+  recordDiagnostic({
+    event: `sync.${event}`,
+    level: event.includes("ERROR") || event.includes("REJECTED") ? "error" : "info",
+    component: "SyncScene",
+    context,
   });
 }
 
