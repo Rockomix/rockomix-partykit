@@ -12,12 +12,19 @@ import { Alert, AlertDescription, AlertTitle } from "./ui/ui/alert";
 import { esMX } from "~/locales/es-MX";
 import { recordDiagnostic } from "~/lib/diagnostics";
 
+type SongSearchDiagnosticContext = {
+  roomId?: string;
+  role?: string;
+  sessionId?: string;
+};
+
 type Props = {
   onVideoAdded: (videoId: string, title: string, coverUrl: string) => void;
   playlist: KaraokeParty["playlist"];
+  diagnosticContext?: SongSearchDiagnosticContext;
 };
 
-export function SongSearch({ onVideoAdded, playlist }: Props) {
+export function SongSearch({ onVideoAdded, playlist, diagnosticContext }: Props) {
   const [videoInputValue, setVideoInputValue] = useState("");
   const [canFetch, setCanFetch] = useState(false);
   const [includeKaraoke, setIncludeKaraoke] = useState(true);
@@ -151,17 +158,118 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
                     size="icon"
                     className="shadow-xl animate-in spin-in"
                     disabled={alreadyAdded}
-                    onClick={() =>
-                      (() => {
-                        recordDiagnostic({ event: "song-search.add-attempt", component: "SongSearch", context: { videoId: video.id.videoId, hasTitle: Boolean(video.snippet?.title), hasThumbnail: Boolean(video.snippet?.thumbnails?.high?.url) } });
-                        try {
-                          onVideoAdded(video.id.videoId, removeBracketedContent(video.snippet.title), video.snippet.thumbnails.high.url);
-                        } catch (error) {
-                          recordDiagnostic({ event: "song-search.add-failed", level: "error", component: "SongSearch", error, context: { videoId: video.id.videoId } });
-                          throw error;
+                    onClick={() => {
+                      const videoId = video.id.videoId;
+                      const callbackTitle = removeBracketedContent(video.snippet.title);
+                      const title = decode(callbackTitle);
+                      const context = {
+                        videoId,
+                        title,
+                        titleLength: title.length,
+                        roomId: diagnosticContext?.roomId,
+                        role: diagnosticContext?.role,
+                        sessionId: diagnosticContext?.sessionId,
+                      };
+
+                      recordDiagnostic({
+                        event: "song-search.add-attempt",
+                        component: "SongSearch",
+                        context: {
+                          videoId,
+                          hasTitle: Boolean(video.snippet?.title),
+                          hasThumbnail: Boolean(video.snippet?.thumbnails?.high?.url),
+                        },
+                      });
+
+                      recordDiagnostic({
+                        event: "song.add.click",
+                        component: "SongSearch",
+                        roomId: diagnosticContext?.roomId,
+                        role: diagnosticContext?.role,
+                        sessionId: diagnosticContext?.sessionId,
+                        context,
+                      });
+                      recordDiagnostic({
+                        event: "song.add.start",
+                        component: "SongSearch",
+                        roomId: diagnosticContext?.roomId,
+                        role: diagnosticContext?.role,
+                        sessionId: diagnosticContext?.sessionId,
+                        context,
+                      });
+
+                      try {
+                        const callbackResult = onVideoAdded(
+                          videoId,
+                          callbackTitle,
+                          video.snippet.thumbnails.high.url,
+                        ) as unknown;
+
+                        recordDiagnostic({
+                          event: "song.add.callback",
+                          component: "SongSearch",
+                          roomId: diagnosticContext?.roomId,
+                          role: diagnosticContext?.role,
+                          sessionId: diagnosticContext?.sessionId,
+                          context: {
+                            ...context,
+                            callbackResultType: callbackResult === null
+                              ? "null"
+                              : typeof callbackResult,
+                          },
+                        });
+
+                        if (
+                          callbackResult !== null &&
+                          typeof callbackResult === "object" &&
+                          "then" in callbackResult &&
+                          typeof callbackResult.then === "function"
+                        ) {
+                          void Promise.resolve(callbackResult).then(
+                            undefined,
+                            (error: unknown) => {
+                              recordDiagnostic({
+                                event: "song.add.failure",
+                                level: "error",
+                                component: "SongSearch",
+                                roomId: diagnosticContext?.roomId,
+                                role: diagnosticContext?.role,
+                                sessionId: diagnosticContext?.sessionId,
+                                context: { ...context, failureType: "promise" },
+                                error,
+                              });
+                              recordDiagnostic({
+                                event: "song-search.add-failed",
+                                level: "error",
+                                component: "SongSearch",
+                                error,
+                                context: { videoId },
+                              });
+                              throw error;
+                            },
+                          );
                         }
-                      })()
-                    }
+                      } catch (error) {
+                        recordDiagnostic({
+                          event: "song.add.failure",
+                          level: "error",
+                          component: "SongSearch",
+                          roomId: diagnosticContext?.roomId,
+                          role: diagnosticContext?.role,
+                          sessionId: diagnosticContext?.sessionId,
+                          context: { ...context, failureType: "sync" },
+                          error,
+                        });
+                        recordDiagnostic({
+                          event: "song-search.add-failed",
+                          level: "error",
+                          component: "SongSearch",
+                          error,
+                          context: { videoId },
+                        });
+                        throw error;
+                      }
+                    }}
                   >
                     {alreadyAdded ? <Check stroke="pink" /> : <Plus />}
                   </Button>

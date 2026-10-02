@@ -21,6 +21,13 @@ import { MicVocal, SkipForward, Youtube } from "lucide-react";
 import { Spinner } from "./ui/ui/spinner";
 import { esMX } from "~/locales/es-MX";
 import { APP_TEXT_BRAND } from "~/constants/app";
+import { recordDiagnostic } from "~/lib/diagnostics";
+
+type PlayerDiagnosticContext = {
+  roomId?: string;
+  role?: string;
+  sessionId?: string;
+};
 
 type Props = {
   joinPartyUrl: string;
@@ -31,6 +38,7 @@ type Props = {
   isWaiting?: boolean;
   // SINGER_SYNC: solo informa telemetria; no modifica los controles normales.
   onPlaybackSample?: (sample: { position: number; isPlaying: boolean }) => void;
+  diagnosticContext?: PlayerDiagnosticContext;
 };
 
 export type PlayerActions = {
@@ -46,18 +54,50 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     joinPartyUrl,
     video,
     isFullscreen = false,
-    onPlayerEnd,
+    onPlayerEnd: onPlayerEnded,
     onTogglePlayPauseRef,
     isWaiting = false,
     onPlaybackSample,
+    diagnosticContext,
   }: Props,
   ref,
 ) {
   const playerRef = useRef<YouTubePlayer>(null);
+  const previousPlayerStateRef = useRef<number | null>(null);
 
   const [isReady, setIsReady] = useState(false);
   const [showOpenInYouTubeButton, setShowOpenInYouTubeButton] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const getPlayerStateForDiagnostics = (target: unknown): number | undefined => {
+    try {
+      const state = (target as { getPlayerState?: () => unknown } | null)?.getPlayerState?.();
+      return typeof state === "number" ? state : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const recordPlayerDiagnostic = (
+    event: string,
+    context: Record<string, unknown> = {},
+    error?: unknown,
+  ) => {
+    recordDiagnostic({
+      event,
+      component: "Player",
+      roomId: diagnosticContext?.roomId,
+      role: diagnosticContext?.role,
+      sessionId: diagnosticContext?.sessionId,
+      context: { videoId: video.id, isWaiting, ...context },
+      error,
+    });
+  };
+
+  useEffect(() => {
+    recordPlayerDiagnostic("player.mount");
+    return () => recordPlayerDiagnostic("player.unmount");
+  }, []);
 
   const togglePlayPause = useCallback(() => {
     if (!playerRef.current || !isReady) {
@@ -104,14 +144,24 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   }, [isReady]);
 
-  const getPlaybackSample = useCallback(async () => ({
-    position: (await playerRef.current?.getCurrentTime?.()) ?? 0,
-    isPlaying: (await playerRef.current?.getPlayerState?.()) === 1,
-  }), []);
+  const getPlaybackSample = useCallback(async () => {
+    recordPlayerDiagnostic("sync.sample.start");
+    try {
+      const sample = {
+        position: (await playerRef.current?.getCurrentTime?.()) ?? 0,
+        isPlaying: (await playerRef.current?.getPlayerState?.()) === 1,
+      };
+      recordPlayerDiagnostic("sync.sample.success", sample);
+      return sample;
+    } catch (error) {
+      recordPlayerDiagnostic("sync.sample.failure", {}, error);
+      throw error;
+    }
+  }, [video.id, isWaiting, diagnosticContext?.roomId, diagnosticContext?.role, diagnosticContext?.sessionId]);
 
   const skip = useCallback(() => {
-    onPlayerEnd();
-  }, [onPlayerEnd]);
+    onPlayerEnded();
+  }, [onPlayerEnded]);
 
   useImperativeHandle(
     ref,
@@ -160,24 +210,57 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     console.log("Player ready", { event });
     // access to player in all event handlers via event.target
     playerRef.current = event.target;
+    recordPlayerDiagnostic("player.ready", {
+      playerState: getPlayerStateForDiagnostics(event.target),
+    });
     setIsReady(true);
   };
 
-  const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {
+  const onPlayerPlay: YouTubeProps["onPlay"] = (event) => {
     console.log("handlePlay");
+    recordPlayerDiagnostic("player.play", {
+      playerState: getPlayerStateForDiagnostics(event.target),
+    });
 
     setIsPlaying(true);
     void getPlaybackSample().then((sample) => onPlaybackSample?.(sample));
   };
 
-  const onPlayerPause: YouTubeProps["onPause"] = (_event) => {
+  const onPlayerPause: YouTubeProps["onPause"] = (event) => {
     console.log("handlePause");
+    recordPlayerDiagnostic("player.pause", {
+      playerState: getPlayerStateForDiagnostics(event.target),
+    });
     setIsPlaying(false);
     void getPlaybackSample().then((sample) => onPlaybackSample?.(sample));
   };
 
-  const onPlayerError: YouTubeProps["onError"] = (_event) => {
+  const onPlayerStateChange: YouTubeProps["onStateChange"] = (event) => {
+    const nextState = event.data;
+    recordPlayerDiagnostic("player.state.changed", {
+      previousState: previousPlayerStateRef.current,
+      nextState,
+      playerState: getPlayerStateForDiagnostics(event.target),
+    });
+    previousPlayerStateRef.current = nextState;
+  };
+
+  const onPlayerError: YouTubeProps["onError"] = (event) => {
+    recordPlayerDiagnostic("player.error", {
+      errorCode: event.data,
+      playerState: getPlayerStateForDiagnostics(event.target),
+      youtubeEvent: event,
+    });
     setShowOpenInYouTubeButton(true);
+  };
+
+  const handlePlayerEnd = () => {
+    recordPlayerDiagnostic("player.end", {
+      playerState: getPlayerStateForDiagnostics(playerRef.current),
+    });
+    if (!isWaiting) {
+      onPlayerEnded();
+    }
   };
 
   const openYouTubeTab = () => {
@@ -187,8 +270,8 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       "fullscreen=yes"
     );
 
-    if (onPlayerEnd) {
-      onPlayerEnd();
+    if (onPlayerEnded) {
+      onPlayerEnded();
     }
   };
 
@@ -248,7 +331,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
               variant={"secondary"}
               type="button"
               onClick={() => {
-                onPlayerEnd();
+                onPlayerEnded();
               }}
             >
               <SkipForward className="mr-2 h-5 w-5" />
@@ -295,11 +378,8 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
         onReady={onPlayerReady}
         onPause={onPlayerPause}
         onError={onPlayerError}
-        onEnd={() => {
-          if (!isWaiting) {
-            onPlayerEnd();
-          }
-        }}
+        onEnd={handlePlayerEnd}
+        onStateChange={onPlayerStateChange}
       />
       <div
         className={cn(
@@ -365,7 +445,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
             variant={"secondary"}
             type="button"
             onClick={() => {
-              onPlayerEnd();
+              onPlayerEnded();
             }}
           >
             <SkipForward className="mr-2 h-5 w-5" />

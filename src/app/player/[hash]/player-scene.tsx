@@ -21,11 +21,23 @@ import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
 import { esMX } from "~/locales/es-MX";
+import { ensureSessionId } from "~/lib/session";
+import { recordDiagnostic } from "~/lib/diagnostics";
 
 // Imports implementados por Kikekaraoke
 import { AUDIO } from "~/constants/audio";
 
 const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
+
+function summarizePlaylist(playlist: KaraokeParty["playlist"]) {
+  const pending = playlist.filter((video) => video && !video.playedAt);
+  return {
+    length: playlist.length,
+    pendingCount: pending.length,
+    pendingVideoIds: pending.map((video) => video.id),
+    currentVideoId: pending[0]?.id,
+  };
+}
 
 type Props = {
   party: Party;
@@ -42,6 +54,28 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
   const playerActionsRef = useRef<PlayerActions>(null);
   const [waitingVideoDismissed, setWaitingVideoDismissed] = useState(false);
+  const sessionId = ensureSessionId();
+
+  const diag = (
+    event: string,
+    context: Record<string, unknown> = {},
+    error?: unknown,
+  ) => {
+    recordDiagnostic({
+      event: `host.${event}`,
+      component: "PlayerScene",
+      roomId: party.hash ?? undefined,
+      role: "HOST",
+      sessionId,
+      context,
+      error,
+    });
+  };
+
+  useEffect(() => {
+    diag("mount", { playlist: summarizePlaylist(initialPlaylist.playlist ?? []) });
+    return () => diag("unmount");
+  }, []);
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -68,7 +102,17 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     },
     onMessage(event) {
       // TODO: Improve type safety
-      const eventData = JSON.parse(event.data);
+      let eventData: any;
+      try {
+        eventData = JSON.parse(event.data as string);
+      } catch (error) {
+        diag("socket.message.parse-failed", { bytes: String(event.data).length }, error);
+        throw error;
+      }
+
+      diag("socket.message.received", {
+        type: Array.isArray(eventData) ? "playlist" : eventData?.type,
+      });
 
       if (eventData.type === "horn") {
         playThrottledHorn();
@@ -87,15 +131,32 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
       }
 
       if (Array.isArray(eventData)) {
-        setPlaylist(eventData as KaraokeParty["playlist"]);
+        const nextPlaylist = eventData as KaraokeParty["playlist"];
+        diag("playlist.received", summarizePlaylist(nextPlaylist));
+        setPlaylist(nextPlaylist);
       }
     },
   });
 
   // SINGER_SYNC: envia muestras del Host sin cambiar los mensajes normales.
   const sendSyncPlayback = (videoId: string, sample: { position: number; isPlaying: boolean }) => {
-    if (socket.readyState !== WebSocket.OPEN) return;
-    socket.send(JSON.stringify({ type: "sync-playback", videoId, ...sample }));
+    diag("sync.playback.send.start", {
+      videoId,
+      position: sample.position,
+      isPlaying: sample.isPlaying,
+      socketReadyState: socket.readyState,
+    });
+    if (socket.readyState !== WebSocket.OPEN) {
+      diag("sync.playback.send.failure", { videoId, reason: "socket-not-open", socketReadyState: socket.readyState });
+      return;
+    }
+    try {
+      socket.send(JSON.stringify({ type: "sync-playback", videoId, ...sample }));
+      diag("sync.playback.send.success", { videoId });
+    } catch (error) {
+      diag("sync.playback.send.failure", { videoId, socketReadyState: socket.readyState }, error);
+      throw error;
+    }
   };
 
   const { ref, toggle, fullscreen } = useFullscreen();
@@ -157,13 +218,55 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const currentVideo = playlist.find((video) => !video.playedAt);
   const nextVideos = playlist.filter((video) => !video.playedAt);
 
+  const previousCurrentVideoIdRef = useRef<string | undefined>(currentVideo?.id);
+
+  useEffect(() => {
+    const previousVideoId = previousCurrentVideoIdRef.current;
+    const nextVideoId = currentVideo?.id;
+    if (previousVideoId !== nextVideoId) {
+      diag("playlist.current.changed", {
+        previousVideoId,
+        nextVideoId,
+        playlistLength: playlist.length,
+        pendingCount: nextVideos.length,
+      });
+    }
+    previousCurrentVideoIdRef.current = nextVideoId;
+  }, [currentVideo?.id, playlist.length, nextVideos.length]);
+
+  useEffect(() => {
+    const renderedPlayerId = currentVideo?.id ?? (!waitingVideoDismissed ? INSTITUTIONAL_VIDEO_ID : undefined);
+    if (!renderedPlayerId) return;
+    diag("player.scene.mount", {
+      videoId: renderedPlayerId,
+      playerType: renderedPlayerId === INSTITUTIONAL_VIDEO_ID && !currentVideo ? "institutional" : "song",
+    });
+    return () => {
+      diag("player.scene.unmount", {
+        videoId: renderedPlayerId,
+        playerType: renderedPlayerId === INSTITUTIONAL_VIDEO_ID && !currentVideo ? "institutional" : "song",
+      });
+    };
+  }, [currentVideo?.id, waitingVideoDismissed]);
+
   // SINGER_SYNC: heartbeat de telemetria, sin correccion de drift.
   useEffect(() => {
     const heartbeat = window.setInterval(() => {
       if (!currentVideo) return;
+      diag("sync.sample.start", { videoId: currentVideo.id, source: "heartbeat" });
       const samplePromise = playerActionsRef.current?.getPlaybackSample();
       if (samplePromise) {
-        void samplePromise.then((sample) => sendSyncPlayback(currentVideo.id, sample));
+        void samplePromise.then(
+          (sample) => {
+            diag("sync.sample.success", { videoId: currentVideo.id, source: "heartbeat", ...sample });
+            sendSyncPlayback(currentVideo.id, sample);
+          },
+          (error: unknown) => {
+            diag("sync.sample.failure", { videoId: currentVideo.id, source: "heartbeat" }, error);
+          },
+        );
+      } else {
+        diag("sync.sample.failure", { videoId: currentVideo.id, source: "heartbeat", reason: "player-actions-unavailable" });
       }
     }, 30_000);
     return () => window.clearInterval(heartbeat);
@@ -251,6 +354,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
           key={party.hash}
           playlist={playlist}
           onVideoAdded={addSong}
+            diagnosticContext={{ roomId: party.hash ?? undefined, role: "HOST", sessionId }}
         />
       </div>
       <div className="grow-0 basis-2/3 overflow-auto">
@@ -275,6 +379,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                   markAsPlayed();
                 }}
                 onTogglePlayPauseRef={togglePlayPauseRef}
+                diagnosticContext={{ roomId: party.hash ?? undefined, role: "HOST", sessionId }}
                 onPlaybackSample={(sample) => sendSyncPlayback(currentVideo.id, sample)}
               />
             ) : !waitingVideoDismissed ? (
@@ -293,6 +398,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                   setWaitingVideoDismissed(true);
                 }}
                 onTogglePlayPauseRef={togglePlayPauseRef}
+                diagnosticContext={{ roomId: party.hash ?? undefined, role: "HOST", sessionId }}
               />
             ) : (
               <EmptyPlayer

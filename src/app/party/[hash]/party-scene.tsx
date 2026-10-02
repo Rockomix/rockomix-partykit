@@ -51,6 +51,16 @@ function getTitleSizeClass(title: string) {
   return "text-base sm:text-lg lg:text-xl";
 }
 
+function summarizePlaylist(playlist: KaraokeParty["playlist"]) {
+  const pending = playlist.filter((video) => video && !video.playedAt);
+  return {
+    length: playlist.length,
+    pendingCount: pending.length,
+    pendingVideoIds: pending.map((video) => video.id),
+    currentVideoId: pending[0]?.id,
+  };
+}
+
 export function PartyScene({
   party,
   initialPlaylist,
@@ -143,6 +153,15 @@ export function PartyScene({
       try {
         const eventData = JSON.parse(event.data);
 
+        if (eventData.type === "connected") {
+          diag("socket.connected.initial-playlist", {
+            hasPlaylist: Array.isArray(eventData.playlist),
+            playlist: Array.isArray(eventData.playlist)
+              ? summarizePlaylist(eventData.playlist)
+              : undefined,
+          });
+        }
+
         if (eventData.type === "role-assigned") {
           setRole(eventData.role);
           diag("role.assigned", { assignedRole: eventData.role });
@@ -160,8 +179,14 @@ export function PartyScene({
         }
 
         if (Array.isArray(eventData)) {
+          const previousPlaylist = playlist;
+          diag("playlist.received", summarizePlaylist(eventData));
+          diag("playlist.changed", {
+            previous: summarizePlaylist(previousPlaylist),
+            next: summarizePlaylist(eventData),
+          });
           setPlaylist(eventData);
-          diag("playlist.updated", { count: eventData.length });
+          diag("playlist.updated", summarizePlaylist(eventData));
         } else {
           diag("socket.message.ignored", { type: eventData?.type });
         }
@@ -183,13 +208,46 @@ export function PartyScene({
 
   const addSong = async (videoId: string, title: string, coverUrl: string) => {
     diag("cohost.action.add-song", { videoId, titleLength: title.length, hasCoverUrl: Boolean(coverUrl) });
-    sendSocketMessage({
-      type: "add-video",
-      id: videoId,
+    const pendingCount = playlist.filter((video) => !video.playedAt).length;
+    const addContext = {
+      videoId,
       title,
-      singerName: name,
-      coverUrl,
-    } satisfies Message);
+      titleLength: title.length,
+      socketReadyState: socket.readyState,
+      playlistLength: playlist.length,
+      pendingCount,
+    };
+    diag("song.add.start", addContext);
+    diag("song.add.send", addContext);
+    try {
+      const message = {
+        type: "add-video",
+        id: videoId,
+        title,
+        singerName: name,
+        coverUrl,
+      } satisfies Message;
+      if (socket.readyState !== WebSocket.OPEN) {
+        diag("song.add.send.failure", {
+          ...addContext,
+          reason: "socket-not-open",
+          socketReadyState: socket.readyState,
+        });
+        sendSocketMessage(message);
+        return;
+      }
+      sendSocketMessage(message);
+      diag("song.add.send.success", {
+        ...addContext,
+        socketReadyState: socket.readyState,
+      });
+    } catch (error) {
+      diag("song.add.send.failure", {
+        ...addContext,
+        socketReadyState: socket.readyState,
+      }, error);
+      throw error;
+    }
   };
 
   const sendHorn = async () => {
@@ -289,7 +347,15 @@ export function PartyScene({
             className="min-h-0 w-full flex-1 overflow-y-auto pt-4 md:pt-3"
           >
             <div className="w-full">
-              <SongSearch onVideoAdded={addSong} playlist={playlist} />
+            <SongSearch
+              onVideoAdded={addSong}
+              playlist={playlist}
+              diagnosticContext={{
+                roomId: party.hash ?? undefined,
+                role,
+                sessionId: ensureSessionId(),
+              }}
+            />
             </div>
           </div>
         </div>
