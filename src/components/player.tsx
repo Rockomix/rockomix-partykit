@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import YouTube, { type YouTubeProps, type YouTubePlayer } from "react-youtube";
+import { toast } from "sonner";
 import { QrCode } from "./qr-code";
 import { type VideoInPlaylist } from "party";
 import { decode } from "html-entities";
@@ -324,12 +325,21 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
 
       <div className="absolute bottom-12 left-0 z-10 flex w-full flex-row justify-between px-4">
         <div className="relative top-10 flex flex-col items-center">
+          <button
+            type="button"
+            onClick={() =>
+              void navigator.clipboard
+                .writeText(joinPartyUrl)
+                .then(() => toast.success("ID de sala copiado!"))
+            }
+            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full whitespace-nowrap border-0 bg-transparent p-0 font-bold tracking-wide text-white/75"
+          >
+            Id Sala: {joinPartyUrl.split("/").pop() ?? ""}
+          </button>
           <QrCode url={joinPartyUrl} />
-          {isPlaying && (
-            <span className="font-bold tracking-wide text-white/75">
-              {APP_TEXT_BRAND.subtitle}
-            </span>
-          )}
+          <span className="font-bold tracking-wide text-white/75">
+            {APP_TEXT_BRAND.subtitle}
+          </span>
         </div>
 
         <div
