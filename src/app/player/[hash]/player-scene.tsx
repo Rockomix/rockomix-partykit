@@ -41,7 +41,34 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
   const playerActionsRef = useRef<PlayerActions>(null);
+  const currentVideoRef = useRef<KaraokeParty["playlist"][number] | undefined>(
+    undefined,
+  );
   const [waitingVideoDismissed, setWaitingVideoDismissed] = useState(false);
+  const [fullscreenRequestPending, setFullscreenRequestPending] =
+    useState(false);
+  const fullscreenRequestTimeoutRef = useRef<number | null>(null);
+
+  const clearFullscreenRequestTimer = () => {
+    if (fullscreenRequestTimeoutRef.current !== null) {
+      window.clearTimeout(fullscreenRequestTimeoutRef.current);
+      fullscreenRequestTimeoutRef.current = null;
+    }
+  };
+
+  const hideFullscreenRequest = () => {
+    clearFullscreenRequestTimer();
+    setFullscreenRequestPending(false);
+  };
+
+  const showFullscreenRequest = () => {
+    clearFullscreenRequestTimer();
+    setFullscreenRequestPending(true);
+    fullscreenRequestTimeoutRef.current = window.setTimeout(() => {
+      fullscreenRequestTimeoutRef.current = null;
+      setFullscreenRequestPending(false);
+    }, 3000);
+  };
 
   // Throttled horn function
   const playThrottledHorn = () => {
@@ -82,8 +109,21 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
         playerActionsRef.current?.pause();
       }
 
+      if (eventData.type === "reset-song") {
+        if (currentVideoRef.current?.id === eventData.id) {
+          playerActionsRef.current?.reset();
+        }
+      }
+
       if (eventData.type === "toggle-fullscreen") {
-        void toggle().catch(() => undefined);
+        if (fullscreen) {
+          void toggle().catch(() => {
+            toast.error("No se pudo salir de pantalla completa.");
+          });
+        } else {
+          showFullscreenRequest();
+          toast.info("Confirma la pantalla completa en el reproductor.");
+        }
       }
 
       if (Array.isArray(eventData)) {
@@ -93,6 +133,27 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   });
 
   const { ref, toggle, fullscreen } = useFullscreen();
+
+  const confirmFullscreenRequest = async () => {
+    try {
+      await toggle();
+      hideFullscreenRequest();
+    } catch {
+      toast.error("No se pudo activar la pantalla completa.");
+    }
+  };
+
+  useEffect(() => {
+    if (fullscreen) {
+      hideFullscreenRequest();
+    }
+  }, [fullscreen]);
+
+  useEffect(() => {
+    return () => {
+      clearFullscreenRequestTimer();
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) {
@@ -150,6 +211,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
   const currentVideo = playlist.find((video) => !video.playedAt);
   const nextVideos = playlist.filter((video) => !video.playedAt);
+  currentVideoRef.current = currentVideo;
 
   useEffect(() => {
     if (currentVideo) {
@@ -246,6 +308,18 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
             >
               {fullscreen ? <Minimize /> : <Maximize />}
             </Button>
+            {fullscreenRequestPending && !fullscreen && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void confirmFullscreenRequest()}
+                >
+                  <Maximize className="mr-2 h-5 w-5" />
+                  Activar pantalla completa
+                </Button>
+              </div>
+            )}
             {currentVideo ? (
               <Player
                 ref={playerActionsRef}

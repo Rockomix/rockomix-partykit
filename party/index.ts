@@ -67,6 +67,11 @@ const Pause = z.object({
 	type: z.literal("pause"),
 });
 
+const ResetSong = z.object({
+	type: z.literal("reset-song"),
+	id: z.string(),
+});
+
 const ToggleFullscreen = z.object({
 	type: z.literal("toggle-fullscreen"),
 });
@@ -78,6 +83,7 @@ const Message = z.union([
 	Horn,
 	Play,
 	Pause,
+	ResetSong,
 	ToggleFullscreen,
 ]);
 

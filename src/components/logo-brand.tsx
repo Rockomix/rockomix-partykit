@@ -61,7 +61,10 @@ export function LogoBrand({ size = "md", className }: Props) {
   const styles = sizeStyles[size];
 
   return (
-    <div className={cn("flex", styles.layoutClass, styles.gapClass, className)}>
+    <div
+      translate="no"
+      className={cn("flex", styles.layoutClass, styles.gapClass, className)}
+    >
       <Image
         src={logo}
         width={styles.width}

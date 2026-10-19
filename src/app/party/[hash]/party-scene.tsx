@@ -13,6 +13,7 @@ import {
   Megaphone,
   Pause,
   Play,
+  RotateCcw,
   Share2,
   SkipForward,
 } from "lucide-react";
@@ -68,6 +69,7 @@ export function PartyScene({
   const previousScrollTopRef = useRef(0);
   const [isBrandScrolled, setIsBrandScrolled] = useState(false);
   const [isPlaylistVisible, setIsPlaylistVisible] = useState(true);
+  const [isResetPending, setIsResetPending] = useState(false);
 
   useEffect(() => {
     const content = contentScrollRef.current;
@@ -137,6 +139,11 @@ export function PartyScene({
           return;
         }
 
+        if (eventData.type === "reset-song") {
+          setIsResetPending(false);
+          return;
+        }
+
         if (Array.isArray(eventData)) {
           setPlaylist(eventData);
         }
@@ -172,6 +179,25 @@ export function PartyScene({
 
   const sendPause = () => {
     sendSocketMessage({ type: "pause" } as Message);
+  };
+
+  const sendResetSong = () => {
+    if (!nextVideo || isResetPending) {
+      if (!nextVideo) {
+        toast.error("No hay una canción activa para reiniciar.");
+      }
+      return;
+    }
+
+    setIsResetPending(true);
+    sendSocketMessage({
+      type: "reset-song",
+      id: nextVideo.id,
+    } satisfies Message);
+
+    window.setTimeout(() => {
+      setIsResetPending(false);
+    }, 1000);
   };
 
   const sendToggleFullscreen = () => {
@@ -324,26 +350,54 @@ export function PartyScene({
 
             {role === "COHOST" && (
               <div className="flex items-center gap-2">
-                <button type="button" className="btn btn-secondary" onClick={sendPlay}>
-                  <Play className="mr-2 h-4 w-4" />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendResetSong}
+                  disabled={!nextVideo || isResetPending}
+                  aria-label="Reiniciar canción"
+                  title="Reiniciar canción"
+                >
+                  <RotateCcw
+                    className={`h-5 w-5 ${isResetPending ? "animate-spin" : ""}`}
+                  />
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={sendPause}>
-                  <Pause className="mr-2 h-4 w-4" />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendPlay}
+                  aria-label="Reproducir canción"
+                  title="Reproducir canción"
+                >
+                  <Play className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={sendPause}
+                  aria-label="Pausar canción"
+                  title="Pausar canción"
+                >
+                  <Pause className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={sendSkip}
                   disabled={!nextVideo}
+                  aria-label="Siguiente canción"
+                  title="Siguiente canción"
                 >
-                  <SkipForward className="mr-2 h-4 w-4" />
+                  <SkipForward className="h-5 w-5" />
                 </button>
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={sendToggleFullscreen}
+                  aria-label="Pantalla completa"
+                  title="Pantalla completa"
                 >
-                  <Maximize className="mr-2 h-4 w-4" />
+                  <Maximize className="h-5 w-5" />
                 </button>
               </div>
             )}

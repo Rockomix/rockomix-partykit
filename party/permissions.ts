@@ -16,6 +16,10 @@ export function canPause(role: ClientRole): boolean {
   return isHost(role) || isCohost(role);
 }
 
+export function canResetSong(role: ClientRole): boolean {
+  return isHost(role) || isCohost(role);
+}
+
 export function canMarkAsPlayed(role: ClientRole): boolean {
   return isHost(role) || isCohost(role);
 }

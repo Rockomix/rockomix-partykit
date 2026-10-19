@@ -34,6 +34,7 @@ type Props = {
 export type PlayerActions = {
   play: () => void;
   pause: () => void;
+  reset: () => void;
   skip: () => void;
   toggle: () => void;
 };
@@ -54,6 +55,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
   const [isReady, setIsReady] = useState(false);
   const [showOpenInYouTubeButton, setShowOpenInYouTubeButton] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const resetWhenReadyRef = useRef(false);
 
   const togglePlayPause = useCallback(() => {
     if (!playerRef.current || !isReady) {
@@ -100,6 +102,24 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   }, [isReady]);
 
+  const reset = useCallback(() => {
+    if (!playerRef.current || !isReady) {
+      resetWhenReadyRef.current = true;
+      return;
+    }
+
+    const playerState = playerRef.current.getPlayerState();
+    const wasPlaying = playerState === 1;
+
+    playerRef.current.seekTo(0, true);
+
+    // seekTo preserves YouTube's playing/paused state. Avoid an extra
+    // play/pause call that could race with the existing synchronization.
+    if (wasPlaying) {
+      setIsPlaying(true);
+    }
+  }, [isReady]);
+
   const skip = useCallback(() => {
     onPlayerEnd();
   }, [onPlayerEnd]);
@@ -109,10 +129,11 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     () => ({
       play,
       pause,
+      reset,
       skip,
       toggle: togglePlayPause,
     }),
-    [pause, play, skip, togglePlayPause],
+    [pause, play, reset, skip, togglePlayPause],
   );
 
   const opts: YouTubeProps["opts"] = {
@@ -151,6 +172,11 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     // access to player in all event handlers via event.target
     playerRef.current = event.target;
     setIsReady(true);
+
+    if (resetWhenReadyRef.current) {
+      resetWhenReadyRef.current = false;
+      event.target.seekTo(0, true);
+    }
   };
 
   const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {

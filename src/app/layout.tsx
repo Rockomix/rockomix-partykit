@@ -72,7 +72,7 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="en"
+      lang="es-MX"
       data-theme="synthwave"
       className={`theme-custom ${roboto_slab.variable} ${roboto_mono.variable}`}
     >

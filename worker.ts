@@ -29,6 +29,7 @@ import {
   canMarkAsPlayed,
   canPause,
   canPlay,
+  canResetSong,
 } from "./party/permissions";
 import { orderByFairness } from "~/utils/array";
 
@@ -93,6 +94,11 @@ const PauseSchema = z.object({
 	type: z.literal("pause"),
 });
 
+const ResetSongSchema = z.object({
+	type: z.literal("reset-song"),
+	id: z.string(),
+});
+
 const ToggleFullscreenSchema = z.object({
 	type: z.literal("toggle-fullscreen"),
 });
@@ -103,6 +109,7 @@ const MessageSchema = z.discriminatedUnion("type", [
 	MarkAsPlayedSchema,
 	PlaySchema,
 	PauseSchema,
+	ResetSongSchema,
 	ToggleFullscreenSchema,
 	HornSchema,
 ]);
@@ -217,6 +224,23 @@ export class PartyRoom extends Server {
 
 			case "pause": {
 				if (!canPause(role ?? "INVITADO")) {
+					return;
+				}
+
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "reset-song": {
+				if (!canResetSong(role ?? "INVITADO")) {
+					return;
+				}
+
+				const activeVideo = this.karaokeParty.playlist.find(
+					(video) => !video.playedAt,
+				);
+
+				if (!activeVideo || activeVideo.id !== data.id) {
 					return;
 				}
 
