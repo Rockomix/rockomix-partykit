@@ -29,9 +29,11 @@ import {
   canMarkAsPlayed,
   canPause,
   canPlay,
+  canRate,
   canResetSong,
 } from "./party/permissions";
 import { orderByFairness } from "~/utils/array";
+import { chooseRatingPhrase, generateRatingScore } from "~/utils/rating";
 
 function safeParseJson(value: string): unknown | null {
   try {
@@ -103,6 +105,12 @@ const ToggleFullscreenSchema = z.object({
 	type: z.literal("toggle-fullscreen"),
 });
 
+const RatingRequestSchema = z.object({
+	type: z.literal("rating-request"),
+	songId: z.string().optional(),
+	requestId: z.string(),
+});
+
 const MessageSchema = z.discriminatedUnion("type", [
 	AddVideoSchema,
 	RemoveVideoSchema,
@@ -112,6 +120,7 @@ const MessageSchema = z.discriminatedUnion("type", [
 	ResetSongSchema,
 	ToggleFullscreenSchema,
 	HornSchema,
+	RatingRequestSchema,
 ]);
 
 const INITIAL_KARAOKE_PARTY: KaraokeParty = {
@@ -123,6 +132,8 @@ const INITIAL_KARAOKE_PARTY: KaraokeParty = {
 
 export class PartyRoom extends Server {
 	karaokeParty: KaraokeParty | undefined;
+	activeRatingId: string | null = null;
+	activeRatingExpiresAt = 0;
 
 	override async onStart() {
 		this.karaokeParty = await this.ctx.storage.get<KaraokeParty>("karaokeParty");
@@ -259,6 +270,39 @@ export class PartyRoom extends Server {
 
 			case "horn": {
 				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "rating-request": {
+				if (this.activeRatingId && Date.now() >= this.activeRatingExpiresAt) {
+					this.activeRatingId = null;
+					this.activeRatingExpiresAt = 0;
+				}
+
+				if (!canRate(role ?? "INVITADO") || this.activeRatingId) {
+					return;
+				}
+
+				const activeVideo = this.karaokeParty.playlist.find(
+					(video) => !video.playedAt,
+				);
+
+				const ratingId = `${data.requestId}-${Date.now()}`;
+				this.activeRatingId = ratingId;
+				this.activeRatingExpiresAt = Date.now() + 5000;
+				const score = generateRatingScore();
+				this.broadcast(
+					JSON.stringify({
+						type: "rating-result",
+						ratingId,
+						songId: activeVideo?.id ?? null,
+						singerName: activeVideo?.singerName ?? "",
+						title: activeVideo?.title ?? "",
+						score,
+						phrase: chooseRatingPhrase(score),
+					}),
+				);
+
 				return;
 			}
 

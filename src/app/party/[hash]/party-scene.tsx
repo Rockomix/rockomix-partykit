@@ -16,6 +16,7 @@ import {
   RotateCcw,
   Share2,
   SkipForward,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import usePartySocket from "partysocket/react";
@@ -70,6 +71,7 @@ export function PartyScene({
   const [isBrandScrolled, setIsBrandScrolled] = useState(false);
   const [isPlaylistVisible, setIsPlaylistVisible] = useState(true);
   const [isResetPending, setIsResetPending] = useState(false);
+  const [isRatingPending, setIsRatingPending] = useState(false);
 
   useEffect(() => {
     const content = contentScrollRef.current;
@@ -144,6 +146,11 @@ export function PartyScene({
           return;
         }
 
+        if (eventData.type === "rating-result") {
+          setIsRatingPending(false);
+          return;
+        }
+
         if (Array.isArray(eventData)) {
           setPlaylist(eventData);
         }
@@ -202,6 +209,30 @@ export function PartyScene({
 
   const sendToggleFullscreen = () => {
     sendSocketMessage({ type: "toggle-fullscreen" } satisfies Message);
+  };
+
+  const sendRating = () => {
+    if (isRatingPending) return;
+
+    if (socket.readyState !== WebSocket.OPEN) {
+      toast.error("No se pudo enviar la calificación.");
+      return;
+    }
+
+    setIsRatingPending(true);
+    socket.send(
+      JSON.stringify({
+        type: "rating-request",
+        requestId:
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+      }),
+    );
+
+    window.setTimeout(() => {
+      setIsRatingPending(false);
+    }, 6000);
   };
 
   const sendSkip = () => {
@@ -349,7 +380,7 @@ export function PartyScene({
             </div>
 
             {role === "COHOST" && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -398,6 +429,17 @@ export function PartyScene({
                   title="Pantalla completa"
                 >
                   <Maximize className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  className="ml-1 inline-flex min-w-[7.5rem] cursor-pointer items-center justify-center gap-2 rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-3"
+                  onClick={sendRating}
+                  disabled={isRatingPending}
+                  aria-label="Calificar interpretación"
+                  title="Calificar interpretación"
+                >
+                  <Star className="h-5 w-5" />
+                  <span>{isRatingPending ? "Calificando" : "Calificar"}</span>
                 </button>
               </div>
             )}

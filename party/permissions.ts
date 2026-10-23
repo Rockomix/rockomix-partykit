@@ -23,3 +23,7 @@ export function canResetSong(role: ClientRole): boolean {
 export function canMarkAsPlayed(role: ClientRole): boolean {
   return isHost(role) || isCohost(role);
 }
+
+export function canRate(role: ClientRole): boolean {
+  return isCohost(role);
+}

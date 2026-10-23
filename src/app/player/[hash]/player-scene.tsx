@@ -21,6 +21,10 @@ import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
 import { esMX } from "~/locales/es-MX";
+import {
+  RatingOverlay,
+  type RatingResult,
+} from "~/components/rating-overlay";
 
 // Imports implementados por Kikekaraoke
 import { AUDIO } from "~/constants/audio";
@@ -45,6 +49,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     undefined,
   );
   const [waitingVideoDismissed, setWaitingVideoDismissed] = useState(false);
+  const [ratingResult, setRatingResult] = useState<RatingResult | null>(null);
   const [fullscreenRequestPending, setFullscreenRequestPending] =
     useState(false);
   const fullscreenRequestTimeoutRef = useRef<number | null>(null);
@@ -124,6 +129,10 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
           showFullscreenRequest();
           toast.info("Confirma la pantalla completa en el reproductor.");
         }
+      }
+
+      if (eventData.type === "rating-result") {
+        setRatingResult(eventData as RatingResult);
       }
 
       if (Array.isArray(eventData)) {
@@ -355,6 +364,12 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                 className={fullscreen ? "bg-gradient" : ""}
               />
             )}
+            {ratingResult ? (
+              <RatingOverlay
+                result={ratingResult}
+                onComplete={() => setRatingResult(null)}
+              />
+            ) : null}
           </div>
           <div className="h-1/6 min-h-[150px] border-t border-slate-500 p-4">
             {nextVideos.length > 0 ? (
