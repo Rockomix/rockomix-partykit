@@ -19,6 +19,7 @@ export type RatingResult = {
 type Props = {
   result: RatingResult;
   onComplete: () => void;
+  onReveal?: () => void;
 };
 
 const REVEAL_AT = 4063;
@@ -28,14 +29,19 @@ const SPIN_HIT_TIMES = [
   2965, 3414,
 ] as const;
 
-export function RatingOverlay({ result, onComplete }: Props) {
+export function RatingOverlay({ result, onComplete, onReveal }: Props) {
   const [displayedScore, setDisplayedScore] = useState(1);
   const [revealed, setRevealed] = useState(false);
   const onCompleteRef = useRef(onComplete);
+  const onRevealRef = useRef(onReveal);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  useEffect(() => {
+    onRevealRef.current = onReveal;
+  }, [onReveal]);
 
   useEffect(() => {
     const spinAudio = new Audio(RATING_SPIN_SOUND);
@@ -110,6 +116,7 @@ export function RatingOverlay({ result, onComplete }: Props) {
       stopAndRelease(spinAudio);
       setDisplayedScore(result.score);
       setRevealed(true);
+      onRevealRef.current?.();
       exposureTimer = window.setTimeout(() => {
         minimumExposureComplete = true;
         tryComplete();

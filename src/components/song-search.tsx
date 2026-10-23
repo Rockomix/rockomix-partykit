@@ -64,14 +64,35 @@ export function SongSearch({ onVideoAdded, playlist }: Props) {
         </Button>
       </div>
 
-      <label className="mt-3 flex items-center gap-2 text-sm text-white">
-        <input
-          type="checkbox"
-          checked={includeKaraoke}
-          onChange={(e) => setIncludeKaraoke(e.target.checked)}
-        />
-        <span>Karaoke</span>
-      </label>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-white">
+        <span className="shrink-0">Buscar:</span>
+        <button
+          type="button"
+          aria-pressed={includeKaraoke}
+          onClick={() => setIncludeKaraoke(true)}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 font-medium whitespace-nowrap transition-colors ${
+            includeKaraoke
+              ? "border-white/40 bg-secondary text-secondary-foreground"
+              : "border-white/20 bg-white/10 text-white/75 hover:bg-white/20 hover:text-white"
+          }`}
+        >
+          <span aria-hidden="true">🎤</span>
+          <span>Karaoke</span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={!includeKaraoke}
+          onClick={() => setIncludeKaraoke(false)}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 font-medium whitespace-nowrap transition-colors ${
+            !includeKaraoke
+              ? "border-white/40 bg-secondary text-secondary-foreground"
+              : "border-white/20 bg-white/10 text-white/75 hover:bg-white/20 hover:text-white"
+          }`}
+        >
+          <span aria-hidden="true">🎵</span>
+          <span>Música</span>
+        </button>
+      </div>
 
       {isError && (
         <Alert variant={"destructive"} className="mt-4 bg-red-500 text-white">

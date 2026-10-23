@@ -22,6 +22,10 @@ import { env } from "~/env";
 import { getUrl } from "~/utils/url";
 import { esMX } from "~/locales/es-MX";
 import {
+  ConfettiCanvas,
+  type ConfettiCanvasHandle,
+} from "~/components/confetti-canvas";
+import {
   RatingOverlay,
   type RatingResult,
 } from "~/components/rating-overlay";
@@ -50,6 +54,8 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   );
   const [waitingVideoDismissed, setWaitingVideoDismissed] = useState(false);
   const [ratingResult, setRatingResult] = useState<RatingResult | null>(null);
+  const confettiRef = useRef<ConfettiCanvasHandle>(null);
+  const confettiRatingIdRef = useRef<string | null>(null);
   const [fullscreenRequestPending, setFullscreenRequestPending] =
     useState(false);
   const fullscreenRequestTimeoutRef = useRef<number | null>(null);
@@ -72,7 +78,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     fullscreenRequestTimeoutRef.current = window.setTimeout(() => {
       fullscreenRequestTimeoutRef.current = null;
       setFullscreenRequestPending(false);
-    }, 3000);
+    }, 6000);
   };
 
   // Throttled horn function
@@ -322,10 +328,11 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                 <Button
                   type="button"
                   variant="secondary"
+                  className="h-12 px-5 py-3 text-base"
                   onClick={() => void confirmFullscreenRequest()}
                 >
                   <Maximize className="mr-2 h-5 w-5" />
-                  Activar pantalla completa
+                  Presiona aquí para ampliar a pantalla completa
                 </Button>
               </div>
             )}
@@ -365,10 +372,24 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
               />
             )}
             {ratingResult ? (
-              <RatingOverlay
-                result={ratingResult}
-                onComplete={() => setRatingResult(null)}
-              />
+              <>
+                {ratingResult.score === 10 ? (
+                  <ConfettiCanvas ref={confettiRef} />
+                ) : null}
+                <RatingOverlay
+                  result={ratingResult}
+                  onComplete={() => setRatingResult(null)}
+                  onReveal={() => {
+                    if (
+                      ratingResult.score === 10 &&
+                      confettiRatingIdRef.current !== ratingResult.ratingId
+                    ) {
+                      confettiRatingIdRef.current = ratingResult.ratingId;
+                      confettiRef.current?.fire();
+                    }
+                  }}
+                />
+              </>
             ) : null}
           </div>
           <div className="h-1/6 min-h-[150px] border-t border-slate-500 p-4">

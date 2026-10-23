@@ -1,24 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type CSSProperties, useCallback, useRef, useState } from "react";
-import ReactCanvasConfetti from "react-canvas-confetti";
+import { useRef, useState } from "react";
 import { api } from "~/trpc/react";
 import { Input } from "./ui/ui/input";
 import { ButtonHoverGradient } from "./ui/ui/button-hover-gradient";
 import { ensureSessionId, setNameLocal } from "~/lib/session";
 import { esMX } from "~/locales/es-MX";
-
-const canvasStyles = {
-  position: "absolute",
-  pointerEvents: "none",
-  width: "100%",
-  height: "100%",
-  zIndex: 1,
-  overflow: "hidden",
-  top: 0,
-  left: 0,
-} satisfies CSSProperties;
+import {
+  ConfettiCanvas,
+  type ConfettiCanvasHandle,
+} from "./confetti-canvas";
 
 // Animation variants for the container
 // const containerVariants = {
@@ -29,10 +21,11 @@ const canvasStyles = {
 export function CreateParty() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const confettiRef = useRef<ConfettiCanvasHandle>(null);
 
   const createParty = api.party.create.useMutation({
     onSuccess: (party) => {
-      fire(); // Trigger the confetti animation
+      confettiRef.current?.fire();
 
       // Persist the same client state that Join would set (`name` and `sessionId`)
       try {
@@ -49,44 +42,9 @@ export function CreateParty() {
     },
   });
 
-  // Reference to hold the confetti animation instance
-  const refAnimationInstance = useRef(null);
-
-  // Callback to get the instance of the confetti animation
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const getInstance = useCallback((instance: any) => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    refAnimationInstance.current = instance;
-  }, []);
-
-  // Function to create a confetti shot with specified options
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const makeShot = useCallback((opts: any, originX: number, angle: number) => {
-    if (refAnimationInstance.current) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
-      (refAnimationInstance.current as any)({
-        ...opts,
-        origin: { x: originX, y: 0.5 },
-        angle: angle,
-        particleCount: 500,
-      });
-    }
-  }, []);
-
-  // Function to trigger confetti shots from different positions
-  const fire = useCallback(() => {
-    // Left side shot
-    makeShot({ spread: 100, startVelocity: 40 }, -0.2, 20);
-
-    // Right side shot
-    makeShot({ spread: 100, startVelocity: 40 }, 1.2, 160);
-
-    // More shots can be added here if desired
-  }, [makeShot]);
-
   return (
     <>
-      <ReactCanvasConfetti refConfetti={getInstance} style={canvasStyles} />
+      <ConfettiCanvas ref={confettiRef} />
       <form
         onSubmit={(e) => {
           e.preventDefault();

@@ -19,7 +19,7 @@ const RATING_PHRASES: Record<RatingScore, readonly string[]> = {
   9: [
     "¡Eso ya son palabras mayores!",
     "¡El original acaba de ponerse nervioso!",
-    "¡Aquí hay nivel para pedir bis!",
+    "¡Aquí hay nivel, aplausos!",
   ],
   10: [
     "¡Woooow! ¡Ya te está buscando Universal Music!",

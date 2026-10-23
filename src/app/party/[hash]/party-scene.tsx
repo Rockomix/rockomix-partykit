@@ -270,9 +270,9 @@ export function PartyScene({
                   : "max-h-96 translate-y-0 opacity-100"
               }`}
             >
-              <div className="flex w-full items-center justify-between gap-3">
+              <div className="flex w-full max-w-full flex-wrap items-center justify-between gap-3 md:flex-nowrap">
                 <h1
-                  className={`text-outline scroll-m-20 whitespace-nowrap font-extrabold tracking-tight ${getTitleSizeClass(party.name)}`}
+                  className={`text-outline min-w-0 max-w-full scroll-m-20 whitespace-normal break-words font-extrabold tracking-tight md:whitespace-nowrap ${getTitleSizeClass(party.name)}`}
                 >
                   Fiesta de {party.name}
                 </h1>
