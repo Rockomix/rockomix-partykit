@@ -50,9 +50,9 @@ export function generateRatingScore(): RatingScore {
   const bucket = randomBelow(10_000);
 
   if (bucket < 500) return 6;
-  if (bucket < 2_200) return 7;
+  if (bucket < 2_000) return 7;
   if (bucket < 4_000) return 8;
-  if (bucket < 7_000) return 9;
+  if (bucket < 6_500) return 9;
   return 10;
 }
 
