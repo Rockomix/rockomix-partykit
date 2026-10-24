@@ -368,7 +368,7 @@ export function PartyScene({
         </div>
 
         <div className="flex w-full justify-center bg-black/80">
-          <div className="flex shrink-0 items-center gap-8 self-center rounded-full border border-white/10 bg-black/70 px-2 py-1 shadow-xl backdrop-blur">
+          <div className="flex max-w-full flex-wrap items-center gap-6 sm:gap-8 self-center rounded-full border border-white/10 bg-black/70 px-2 py-1 shadow-xl backdrop-blur">
             <div className="flex items-center">
               <button
                 type="button"
@@ -380,7 +380,7 @@ export function PartyScene({
             </div>
 
             {role === "COHOST" && (
-              <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+              <div className="flex min-w-0 flex-wrap items-center justify-center gap-3.5 sm:gap-4">
                 <button
                   type="button"
                   className="btn btn-secondary"
