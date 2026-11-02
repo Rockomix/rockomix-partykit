@@ -9,7 +9,7 @@ import {
 import type { Party } from "@prisma/client";
 import { ListPlus, Maximize, Minimize, SkipForward, X } from "lucide-react";
 import Image from "next/image";
-import type { Message, KaraokeParty } from "party";
+import type { Message, KaraokeParty } from "~/shared/party-types";
 import usePartySocket from "partysocket/react";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";

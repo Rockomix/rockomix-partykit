@@ -2,7 +2,7 @@
 "use client";
 
 import type { Party } from "@prisma/client";
-import type { Message, KaraokeParty } from "party";
+import type { Message, KaraokeParty } from "~/shared/party-types";
 import { useEffect, useState, useRef } from "react";
 import { env } from "~/env";
 import { readLocalStorageValue, useLocalStorage } from "@mantine/hooks";

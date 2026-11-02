@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import { Plus, Search, Check, Loader2, Frown } from "lucide-react";
-import type { KaraokeParty } from "party";
+import type { KaraokeParty } from "~/shared/party-types";
 import { PreviewPlayer } from "./preview-player";
 import { removeBracketedContent } from "~/utils/string";
 import { decode } from "html-entities";

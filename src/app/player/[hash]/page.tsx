@@ -1,7 +1,7 @@
 import { api } from "~/trpc/server";
 import { env } from "~/env";
 import { notFound } from "next/navigation";
-import { type KaraokeParty } from "party";
+import type { KaraokeParty } from "~/shared/party-types";
 import PlayerScene from "./player-scene";
 
 type Props = {

@@ -72,7 +72,6 @@ export function LogoBrand({ size = "md", className }: Props) {
         className={cn("h-auto w-full object-contain", styles.imageClass)}
         alt="My Karaoke Party logo"
         priority
-        placeholder="blur"
       />
 
       <span

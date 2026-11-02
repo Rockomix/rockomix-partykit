@@ -13,7 +13,7 @@ import {
 import YouTube, { type YouTubeProps, type YouTubePlayer } from "react-youtube";
 import { toast } from "sonner";
 import { QrCode } from "./qr-code";
-import { type VideoInPlaylist } from "party";
+import type { VideoInPlaylist } from "~/shared/party-types";
 import { decode } from "html-entities";
 import { cn } from "~/lib/utils";
 import { Button } from "./ui/ui/button";
