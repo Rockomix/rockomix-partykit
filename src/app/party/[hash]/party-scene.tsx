@@ -580,11 +580,11 @@ export function PartyScene({
         </div>
 
         <div className="flex w-full flex-col items-center justify-center bg-black/80">
-          <div className="flex max-w-full flex-wrap items-center gap-6 sm:gap-8 self-center rounded-full border border-white/10 bg-black/70 px-2 py-1 shadow-xl backdrop-blur">
+          <div className="flex w-max max-w-full flex-nowrap items-center gap-2 self-center overflow-x-auto rounded-full border border-white/10 bg-black/70 px-2 py-1 shadow-xl backdrop-blur sm:gap-8">
             {role === "COHOST" ? (
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center p-1 text-white/80 disabled:opacity-50"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center p-1 text-white/80 disabled:opacity-50"
                 onClick={toggleFairQueue}
                 disabled={Boolean(pendingPlaylistOperationId)}
                 aria-label={
@@ -601,7 +601,7 @@ export function PartyScene({
                 <FairnessIcon className={`h-5 w-5 ${fairnessIconColor}`} />
               </button>
             ) : null}
-            <div className="flex items-center">
+            <div className="flex shrink-0 items-center">
               <button
                 type="button"
                 className="rounded-full bg-yellow-200 p-2 text-black shadow-lg hover:bg-red-700 hover:text-white"
@@ -611,7 +611,7 @@ export function PartyScene({
               </button>
             </div>
             {role === "COHOST" && (
-              <div className="flex min-w-0 flex-wrap items-center justify-center gap-3.5 sm:gap-4">
+              <div className="flex shrink-0 flex-nowrap items-center justify-center gap-2 sm:gap-4">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -663,14 +663,14 @@ export function PartyScene({
                 </button>
                 <button
                   type="button"
-                  className="ml-1 inline-flex min-w-[7.5rem] cursor-pointer items-center justify-center gap-2 rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-3"
+                  className="ml-0 inline-flex shrink-0 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-md bg-secondary px-2 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-3 sm:px-4"
                   onClick={sendRating}
                   disabled={isRatingPending}
                   aria-label="Calificar interpretación"
                   title="Calificar interpretación"
                 >
                   <Star className="h-5 w-5" />
-                  <span>{isRatingPending ? "Calificando" : "Calificar"}</span>
+                  <span>{isRatingPending ? "Calificando" : "Califica"}</span>
                 </button>
               </div>
             )}
