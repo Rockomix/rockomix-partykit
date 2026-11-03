@@ -24,18 +24,23 @@ import type {
 } from "partyserver";
 import { z } from "zod";
 
-import { ClientRole, RequestedRole, resolveRole } from "./party/roles";
+import { resolveRole } from "./party/roles";
+import type { ClientRole, RequestedRole } from "./party/roles";
 import {
   canMarkAsPlayed,
+  canManagePlaylist,
   canPause,
   canPlay,
   canRate,
   canResetSong,
+  canToggleFairQueue,
 } from "./party/permissions";
 import { orderByFairness } from "~/utils/array";
 import { chooseRatingPhrase, generateRatingScore } from "~/utils/rating";
+import { getQueueIndexes, moveInQueue } from "~/utils/playlist";
+import type { PlaylistOperationResult } from "~/shared/party-types";
 
-function safeParseJson(value: string): unknown | null {
+function safeParseJson(value: string): unknown {
   try {
     return JSON.parse(value);
   } catch {
@@ -111,6 +116,19 @@ const RatingRequestSchema = z.object({
 	requestId: z.string(),
 });
 
+const MoveVideoSchema = z.object({
+  type: z.literal("move-video"),
+  requestId: z.string().min(1),
+  id: z.string(),
+  toIndex: z.number().int().nonnegative(),
+});
+
+const SetFairQueueSchema = z.object({
+  type: z.literal("set-fair-queue"),
+  requestId: z.string().min(1),
+  enabled: z.boolean(),
+});
+
 const MessageSchema = z.discriminatedUnion("type", [
 	AddVideoSchema,
 	RemoveVideoSchema,
@@ -121,6 +139,8 @@ const MessageSchema = z.discriminatedUnion("type", [
 	ToggleFullscreenSchema,
 	HornSchema,
 	RatingRequestSchema,
+  MoveVideoSchema,
+  SetFairQueueSchema,
 ]);
 
 const INITIAL_KARAOKE_PARTY: KaraokeParty = {
@@ -134,6 +154,7 @@ export class PartyRoom extends Server {
 	karaokeParty: KaraokeParty | undefined;
 	activeRatingId: string | null = null;
 	activeRatingExpiresAt = 0;
+	private messageQueue: Promise<void> = Promise.resolve();
 
 	override async onStart() {
 		this.karaokeParty = await this.ctx.storage.get<KaraokeParty>("karaokeParty");
@@ -182,6 +203,7 @@ export class PartyRoom extends Server {
 				message: "Rockomix WS OK",
 				role,
 				playlist: this.karaokeParty?.playlist ?? [],
+					settings: this.karaokeParty?.settings ?? INITIAL_KARAOKE_PARTY.settings,
 			}),
 		);
 
@@ -207,7 +229,16 @@ export class PartyRoom extends Server {
 
 		if (!this.karaokeParty) return;
 
-		const parsed = safeParseJson(message);
+			const previousMessage = this.messageQueue;
+			let releaseMessage!: () => void;
+			this.messageQueue = new Promise<void>((resolve) => {
+				releaseMessage = resolve;
+			});
+
+			await previousMessage;
+
+			try {
+			const parsed = safeParseJson(message);
 		if (!parsed) {
 			console.error("[DEBUG B2] Invalid JSON message");
 			return;
@@ -216,6 +247,22 @@ export class PartyRoom extends Server {
 		const result = MessageSchema.safeParse(parsed);
 
 		if (!result.success) {
+				const candidate = parsed as {
+					type?: unknown;
+					requestId?: unknown;
+				};
+				if (
+					(candidate.type === "move-video" ||
+						candidate.type === "set-fair-queue") &&
+					typeof candidate.requestId === "string"
+				) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: candidate.requestId,
+						operation: candidate.type,
+						accepted: false,
+						reason: "invalid-payload",
+					});
+				}
 			return;
 		}
 
@@ -357,7 +404,7 @@ export class PartyRoom extends Server {
 						}
 
 				await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-				this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+				this.broadcastPlaylistState();
 			}
 
 				return;
@@ -371,9 +418,107 @@ export class PartyRoom extends Server {
 				if (index !== -1) {
 					this.karaokeParty.playlist.splice(index, 1);
 					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-					this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+					this.broadcastPlaylistState();
 				}
 
+				return;
+			}
+
+			case "move-video": {
+				if (!canManagePlaylist(role ?? "INVITADO")) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "unauthorized",
+					});
+					return;
+				}
+
+				const playlist = this.karaokeParty.playlist;
+				const video = playlist.find((item) => item.id === data.id);
+				if (!video) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "video-not-found",
+					});
+					return;
+				}
+
+				if (video.playedAt) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "video-already-played",
+					});
+					return;
+				}
+
+				const queueIndexes = getQueueIndexes(playlist);
+				const from = queueIndexes.findIndex(
+					(index) => playlist[index]?.id === data.id,
+				);
+				if (from === 0) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "current-video-protected",
+					});
+					return;
+				}
+
+				const reordered = moveInQueue(playlist, data.id, data.toIndex);
+				if (reordered === playlist) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "no-change",
+					});
+					return;
+				}
+
+				this.karaokeParty.playlist = reordered;
+				this.karaokeParty.settings.orderByFairness = false;
+				await this.ctx.storage.put("karaokeParty", this.karaokeParty);
+				this.sendPlaylistOperationResult(connection, {
+					requestId: data.requestId,
+					operation: data.type,
+					accepted: true,
+				});
+				this.broadcastPlaylistState();
+				return;
+			}
+
+			case "set-fair-queue": {
+				if (!canToggleFairQueue(role ?? "INVITADO")) {
+					this.sendPlaylistOperationResult(connection, {
+						requestId: data.requestId,
+						operation: data.type,
+						accepted: false,
+						reason: "unauthorized",
+					});
+					return;
+				}
+
+				if (this.karaokeParty.settings.orderByFairness !== data.enabled) {
+					this.karaokeParty.settings.orderByFairness = data.enabled;
+					if (data.enabled) {
+						this.reorderPlaylistByFairness();
+					}
+					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
+				}
+
+				this.sendPlaylistOperationResult(connection, {
+					requestId: data.requestId,
+					operation: data.type,
+					accepted: true,
+				});
+				this.broadcastPlaylistState();
 				return;
 			}
 
@@ -390,7 +535,7 @@ export class PartyRoom extends Server {
 					video.playedAt = new Date();
 
 					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
-					this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+					this.broadcastPlaylistState();
 				}
 
 				return;
@@ -399,8 +544,61 @@ export class PartyRoom extends Server {
 			default: {
 				return;
 			}
+			}
+			} finally {
+				releaseMessage();
+			}
 		}
-	}
+
+		reorderPlaylistByFairness() {
+			if (!this.karaokeParty || this.karaokeParty.playlist.length === 0) {
+				return;
+			}
+
+			const ordered = orderByFairness(
+				this.karaokeParty.playlist,
+				(video) => video.singerName,
+				(a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+			);
+			const playedVideos = this.karaokeParty.playlist.filter(
+				(video) => video.playedAt,
+			);
+			const currentVideo = this.karaokeParty.playlist.find(
+				(video) => !video.playedAt,
+			);
+			const nextVideos = ordered.filter(
+				(video) => !video.playedAt && video !== currentVideo,
+			);
+
+			const newPlaylist = [...playedVideos];
+			if (currentVideo) newPlaylist.push(currentVideo);
+			newPlaylist.push(...nextVideos);
+			this.karaokeParty.playlist = newPlaylist;
+		}
+
+		sendPlaylistOperationResult(
+			connection: Connection,
+			result: Omit<PlaylistOperationResult, "type">,
+		) {
+			connection.send(
+				JSON.stringify({
+					type: "playlist-operation-result",
+					...result,
+				}),
+			);
+		}
+
+		broadcastPlaylistState() {
+			if (!this.karaokeParty) return;
+
+			this.broadcast(JSON.stringify(this.karaokeParty.playlist));
+			this.broadcast(
+				JSON.stringify({
+					type: "settings",
+					settings: this.karaokeParty.settings,
+				}),
+			);
+		}
 }
 
 interface Env {

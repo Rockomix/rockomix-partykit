@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { decode } from "html-entities";
 import type { RatingScore } from "~/utils/rating";
 import {
   getRatingRevealSound,
@@ -174,7 +175,7 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
           {result.phrase}
         </p>
         <p className="mt-2 max-w-full truncate text-xs text-white/60 sm:text-sm">
-          {result.title}
+          {decode(result.title)}
         </p>
       </div>
     </div>

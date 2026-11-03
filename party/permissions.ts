@@ -27,3 +27,11 @@ export function canMarkAsPlayed(role: ClientRole): boolean {
 export function canRate(role: ClientRole): boolean {
   return isCohost(role);
 }
+
+export function canManagePlaylist(role: ClientRole): boolean {
+  return isHost(role) || isCohost(role);
+}
+
+export function canToggleFairQueue(role: ClientRole): boolean {
+  return canManagePlaylist(role);
+}

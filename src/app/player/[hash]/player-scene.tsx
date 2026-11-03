@@ -7,9 +7,23 @@ import {
   useHotkeys,
 } from "@mantine/hooks";
 import type { Party } from "@prisma/client";
-import { ListPlus, Maximize, Minimize, SkipForward, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ListPlus,
+  Maximize,
+  Minimize,
+  ListOrdered,
+  Repeat2,
+  SkipForward,
+  X,
+} from "lucide-react";
 import Image from "next/image";
-import type { Message, KaraokeParty } from "~/shared/party-types";
+import type {
+  Message,
+  KaraokeParty,
+  PlaylistOperationResult,
+} from "~/shared/party-types";
 import usePartySocket from "partysocket/react";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
@@ -21,6 +35,7 @@ import { Button } from "~/components/ui/ui/button";
 import { env } from "~/env";
 import { getUrl } from "~/utils/url";
 import { esMX } from "~/locales/es-MX";
+import { moveInQueue } from "~/utils/playlist";
 import {
   ConfettiCanvas,
   type ConfettiCanvasHandle,
@@ -44,6 +59,16 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const [playlist, setPlaylist] = useState<KaraokeParty["playlist"]>(
     initialPlaylist.playlist ?? [],
   );
+  const [fairQueue, setFairQueue] = useState(
+    initialPlaylist.settings?.orderByFairness ?? true,
+  );
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [pendingPlaylistOperationId, setPendingPlaylistOperationId] =
+    useState<string | null>(null);
+  const pendingPlaylistOperationRef = useRef<string | null>(null);
+  const pendingPlaylistAcceptedRef = useRef(false);
+  const pendingPlaylistTimeoutRef = useRef<number | null>(null);
 
   const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
   const lastHornTimeRef = useRef<number>(0);
@@ -141,8 +166,55 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
         setRatingResult(eventData as RatingResult);
       }
 
+      if (eventData.type === "connected") {
+        pendingPlaylistAcceptedRef.current = false;
+        pendingPlaylistOperationRef.current = null;
+        setPendingPlaylistOperationId(null);
+        if (pendingPlaylistTimeoutRef.current !== null) {
+          window.clearTimeout(pendingPlaylistTimeoutRef.current);
+          pendingPlaylistTimeoutRef.current = null;
+        }
+        if (Array.isArray(eventData.playlist)) {
+          setPlaylist(eventData.playlist as KaraokeParty["playlist"]);
+        }
+        if (eventData.settings) {
+          setFairQueue(Boolean(eventData.settings.orderByFairness));
+        }
+      }
+
+      if (eventData.type === "settings") {
+        setFairQueue(Boolean(eventData.settings?.orderByFairness));
+      }
+
+      if (eventData.type === "playlist-operation-result") {
+        const result = eventData as PlaylistOperationResult;
+        if (result.requestId === pendingPlaylistOperationRef.current) {
+          pendingPlaylistOperationRef.current = null;
+          if (result.accepted) {
+            pendingPlaylistAcceptedRef.current = true;
+          } else {
+            setPendingPlaylistOperationId(null);
+            if (pendingPlaylistTimeoutRef.current !== null) {
+              window.clearTimeout(pendingPlaylistTimeoutRef.current);
+              pendingPlaylistTimeoutRef.current = null;
+            }
+            toast.error("No se pudo modificar la playlist.", {
+              description: result.reason ?? "Operación rechazada por el servidor.",
+            });
+          }
+        }
+      }
+
       if (Array.isArray(eventData)) {
         setPlaylist(eventData as KaraokeParty["playlist"]);
+        if (pendingPlaylistAcceptedRef.current) {
+          pendingPlaylistAcceptedRef.current = false;
+          setPendingPlaylistOperationId(null);
+          if (pendingPlaylistTimeoutRef.current !== null) {
+            window.clearTimeout(pendingPlaylistTimeoutRef.current);
+            pendingPlaylistTimeoutRef.current = null;
+          }
+        }
       }
     },
   });
@@ -167,6 +239,9 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   useEffect(() => {
     return () => {
       clearFullscreenRequestTimer();
+      if (pendingPlaylistTimeoutRef.current !== null) {
+        window.clearTimeout(pendingPlaylistTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -256,6 +331,58 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
       JSON.stringify({
         type: "remove-video",
         id: videoId,
+      } satisfies Message),
+    );
+  };
+
+  const createRequestId = () =>
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random()}`;
+
+  const beginPlaylistOperation = (requestId: string) => {
+    pendingPlaylistOperationRef.current = requestId;
+    setPendingPlaylistOperationId(requestId);
+    pendingPlaylistTimeoutRef.current = window.setTimeout(() => {
+      if (pendingPlaylistOperationRef.current !== requestId) return;
+
+      pendingPlaylistOperationRef.current = null;
+      pendingPlaylistAcceptedRef.current = false;
+      setPendingPlaylistOperationId(null);
+      pendingPlaylistTimeoutRef.current = null;
+      toast.warning("No se pudo confirmar el cambio.", {
+        description: "Se solicitará una sincronización al reconectar.",
+      });
+      socket.close();
+    }, 5000);
+  };
+
+  const moveSong = (videoId: string, toIndex: number) => {
+    if (pendingPlaylistOperationId) return;
+    if (moveInQueue(playlist, videoId, toIndex) === playlist) return;
+
+    const requestId = createRequestId();
+    beginPlaylistOperation(requestId);
+    socket.send(
+      JSON.stringify({
+        type: "move-video",
+        requestId,
+        id: videoId,
+        toIndex,
+      } satisfies Message),
+    );
+  };
+
+  const toggleFairQueue = () => {
+    if (pendingPlaylistOperationId) return;
+
+    const requestId = createRequestId();
+    beginPlaylistOperation(requestId);
+    socket.send(
+      JSON.stringify({
+        type: "set-fair-queue",
+        requestId,
+        enabled: !fairQueue,
       } satisfies Message),
     );
   };
@@ -392,19 +519,81 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
               </>
             ) : null}
           </div>
-          <div className="h-1/6 min-h-[150px] border-t border-slate-500 p-4">
+          <div className="h-1/6 min-h-[150px] border-t border-slate-500 px-4 py-2">
+            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-7 shrink-0 items-center gap-2">
+              <button
+                type="button"
+                className={`inline-flex h-7 w-7 items-center justify-center p-0 ${
+                  fairQueue ? "text-[#68A88A]" : "text-[#A0A0A0]"
+                } disabled:opacity-50`}
+                onClick={toggleFairQueue}
+                disabled={Boolean(pendingPlaylistOperationId)}
+                title={
+                  fairQueue
+                    ? "TURNOS activo: pulsar para pasar a MANUAL"
+                    : "MANUAL activo: pulsar para activar TURNOS"
+                }
+              >
+                {fairQueue ? (
+                  <Repeat2 className="h-4 w-4" />
+                ) : (
+                  <ListOrdered className="h-4 w-4" />
+                )}
+              </button>
+              {pendingPlaylistOperationId ? (
+                <span className="text-xs text-slate-400">Sincronizando…</span>
+              ) : null}
+            </div>
             {nextVideos.length > 0 ? (
               <>
-                <div className="no-scrollbar flex h-full flex-row space-x-2 overflow-x-scroll">
-                  {nextVideos.map((v, i) => (
+                <div className="no-scrollbar flex min-h-0 flex-1 flex-row space-x-2 overflow-x-scroll">
+                  {nextVideos.map((v, i) => {
+                    const isCurrent = i === 0;
+                    const isDragging = draggedId === v.id;
+
+                    return (
                     <div
                       key={v.id}
-                      className="relative flex aspect-[4/3] h-full items-center justify-center rounded-lg bg-slate-200 p-3 text-center text-primary-foreground animate-in slide-in-from-bottom first:border-2 first:border-amber-500"
+                      draggable={!isCurrent && !pendingPlaylistOperationId}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData("text/plain", v.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        setDraggedId(v.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedId(null);
+                        setDragOverIndex(null);
+                      }}
+                      onDragOver={(event) => {
+                        if (!draggedId || isCurrent || pendingPlaylistOperationId) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDragOverIndex(i);
+                      }}
+                      onDragLeave={() => {
+                        setDragOverIndex((current) =>
+                          current === i ? null : current,
+                        );
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (draggedId && !isCurrent) moveSong(draggedId, i);
+                        setDraggedId(null);
+                        setDragOverIndex(null);
+                      }}
+                      className={`relative flex aspect-[4/3] h-full items-center justify-center rounded-lg bg-slate-200 p-3 text-center text-primary-foreground animate-in slide-in-from-bottom first:border-2 first:border-amber-500 ${
+                        !isCurrent ? "cursor-grab active:cursor-grabbing" : ""
+                      } ${isDragging ? "opacity-40" : ""} ${
+                        dragOverIndex === i && !isDragging
+                          ? "ring-2 ring-amber-400"
+                          : ""
+                      }`}
                     >
                       <Image
                         src={v.coverUrl}
                         fill={true}
-                        className="rounded-lg hover:opacity-50"
+                        className="pointer-events-none rounded-lg hover:opacity-50"
                         alt="Cover"
                       />
 
@@ -419,7 +608,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                         <X color="red" />
                       </Button>
 
-                      {i === 0 && (
+                      {isCurrent && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -432,9 +621,36 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                         </Button>
                       )}
 
+                      {!isCurrent && i > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute bottom-0 left-0 z-10 rounded text-yellow-300 hover:bg-gray-400"
+                          disabled={Boolean(pendingPlaylistOperationId)}
+                          title="Subir una posición"
+                          onClick={() => moveSong(v.id, i - 1)}
+                        >
+                          <ChevronLeft />
+                        </Button>
+                      )}
+
+                      {!isCurrent && i < nextVideos.length - 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute bottom-0 right-0 z-10 rounded text-yellow-300 hover:bg-gray-400"
+                          disabled={Boolean(pendingPlaylistOperationId)}
+                          title="Bajar una posición"
+                          onClick={() => moveSong(v.id, i + 1)}
+                        >
+                          <ChevronRight />
+                        </Button>
+                      )}
+
                       {/* <div>{decode(v.title)}</div> */}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -446,6 +662,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                 />
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>

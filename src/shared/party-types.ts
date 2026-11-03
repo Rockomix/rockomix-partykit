@@ -48,4 +48,31 @@ export type Message =
       type: "rating-request";
       songId?: string;
       requestId: string;
+    }
+  | {
+      type: "move-video";
+      requestId: string;
+      id: string;
+      toIndex: number;
+    }
+  | {
+      type: "set-fair-queue";
+      requestId: string;
+      enabled: boolean;
     };
+
+export type PlaylistOperationResult = {
+  type: "playlist-operation-result";
+  requestId: string;
+  operation: "move-video" | "set-fair-queue";
+  accepted: boolean;
+  reason?:
+    | "unauthorized"
+    | "invalid-payload"
+    | "video-not-found"
+    | "video-already-played"
+    | "current-video-protected"
+    | "invalid-position"
+    | "no-change"
+    | "server-error";
+};
