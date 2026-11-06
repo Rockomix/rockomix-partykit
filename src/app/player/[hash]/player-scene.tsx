@@ -23,9 +23,11 @@ import type {
   Message,
   KaraokeParty,
   PlaylistOperationResult,
+  SoundPadAssignment,
+  SoundPadConfig,
 } from "~/shared/party-types";
 import usePartySocket from "partysocket/react";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import useSound from "use-sound";
 import { EmptyPlayer } from "~/components/empty-player";
@@ -46,7 +48,7 @@ import {
 } from "~/components/rating-overlay";
 
 // Imports implementados por Kikekaraoke
-import { AUDIO } from "~/constants/audio";
+import { AUDIO, SOUND_BY_ID } from "~/constants/audio";
 
 const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
 
@@ -54,6 +56,29 @@ type Props = {
   party: Party;
   initialPlaylist: KaraokeParty;
 };
+
+function isSoundPadConfig(value: unknown): value is SoundPadConfig {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "version" in value &&
+    "assignments" in value &&
+    Array.isArray(value.assignments)
+  );
+}
+
+function getSoundPadError(value: unknown, fallback: string) {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    typeof value.error === "string"
+  ) {
+    return value.error;
+  }
+
+  return fallback;
+}
 
 export default function PlayerScene({ party, initialPlaylist }: Props) {
   const [playlist, setPlaylist] = useState<KaraokeParty["playlist"]>(
@@ -71,6 +96,36 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const pendingPlaylistTimeoutRef = useRef<number | null>(null);
 
   const [playHorn] = useSound(AUDIO.FXS.KIKERADIO);
+  const [soundPadPlayback, setSoundPadPlayback] = useState<{
+    path: string;
+    volume: number;
+    requestId: number;
+  } | null>(null);
+  const soundPadAudioRef = useRef<HTMLAudioElement | null>(null);
+  const soundPadConfigRef = useRef<SoundPadConfig | null>(null);
+  const soundPadConfigRequestRef = useRef<Promise<SoundPadConfig | null> | null>(
+    null,
+  );
+  const soundPadConfigStatusRef = useRef<"loading" | "ready" | "error">("loading");
+  const soundPadRequestIdRef = useRef(0);
+  const pendingSoundPadIdsRef = useRef<string[]>([]);
+  const soundPadActiveIdRef = useRef<string | null>(null);
+
+  const stopSoundPad = useCallback(() => {
+    const audio = soundPadAudioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    soundPadAudioRef.current = null;
+    soundPadActiveIdRef.current = null;
+    setSoundPadPlayback(null);
+  }, []);
+
+  useEffect(() => {
+    return stopSoundPad;
+  }, [stopSoundPad]);
   const lastHornTimeRef = useRef<number>(0);
   const togglePlayPauseRef = useRef<(() => void) | null>(null);
   const playerActionsRef = useRef<PlayerActions>(null);
@@ -123,6 +178,176 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     }
   };
 
+  const playHornById = (soundId: unknown) => {
+    const resolvedId = soundId === undefined ? "001" : soundId;
+
+    if (typeof resolvedId !== "string") {
+      return;
+    }
+
+    const soundPath =
+      SOUND_BY_ID[resolvedId as keyof typeof SOUND_BY_ID];
+
+    if (!soundPath) {
+      return;
+    }
+
+    if (resolvedId === "001") {
+      playThrottledHorn();
+    }
+  };
+
+  const loadSoundPadConfig = useCallback(async (): Promise<SoundPadConfig | null> => {
+    if (soundPadConfigRef.current) return soundPadConfigRef.current;
+    if (soundPadConfigRequestRef.current) {
+      return soundPadConfigRequestRef.current;
+    }
+
+    const baseUrl = env.NEXT_PUBLIC_PARTYKIT_URL.replace(/\/$/, "");
+    const generalUrl = `${baseUrl}/soundpad?resource=soundPadGeneral`;
+    soundPadConfigStatusRef.current = "loading";
+
+    const request = (async () => {
+      try {
+        const generalResponse = await fetch(generalUrl, { cache: "no-store" });
+        const generalData: unknown = await generalResponse.json();
+
+        if (!generalResponse.ok) {
+          throw new Error(
+            getSoundPadError(
+              generalData,
+              "No se pudo cargar el preset general de SoundPad.",
+            ),
+          );
+        }
+
+        if (!isSoundPadConfig(generalData)) {
+          throw new Error("El preset general de SoundPad no es válido.");
+        }
+
+        return generalData;
+      } catch (error) {
+        soundPadConfigStatusRef.current = "error";
+        pendingSoundPadIdsRef.current = [];
+        console.error("No se pudo cargar la configuración SoundPad del Host:", error);
+        return null;
+      }
+    })();
+
+    soundPadConfigRequestRef.current = request;
+    const config = await request;
+    soundPadConfigRequestRef.current = null;
+
+    if (config) {
+      soundPadConfigRef.current = config;
+      soundPadConfigStatusRef.current = "ready";
+      const pendingSoundPadIds = pendingSoundPadIdsRef.current;
+      pendingSoundPadIdsRef.current = [];
+      for (const pendingSoundId of pendingSoundPadIds) {
+        playSoundPadById(pendingSoundId);
+      }
+    }
+    return config;
+  }, []);
+
+  useEffect(() => {
+    void loadSoundPadConfig();
+  }, [loadSoundPadConfig]);
+
+  const resolveSoundPadPath = (assignment: SoundPadAssignment) => {
+    if (typeof assignment.soundPath === "string" && assignment.soundPath.length > 0) {
+      return assignment.soundPath;
+    }
+
+    if (typeof assignment.soundId !== "string") {
+      return undefined;
+    }
+
+    return SOUND_BY_ID[assignment.soundId as keyof typeof SOUND_BY_ID];
+  };
+
+  const playSoundPadAssignment = (assignment: SoundPadAssignment) => {
+    const soundPath = resolveSoundPadPath(assignment);
+    if (!soundPath) return;
+
+    const volume = Number.isFinite(assignment.volume)
+      ? Math.min(1, Math.max(0, assignment.volume))
+      : 1;
+
+    soundPadRequestIdRef.current += 1;
+    const requestId = soundPadRequestIdRef.current;
+    const audio = new Audio(soundPath);
+    audio.volume = volume;
+    audio.preload = "auto";
+    audio.oncanplaythrough = () => {
+      if (soundPadAudioRef.current !== audio) return;
+      void audio.play().catch((error: unknown) => {
+        console.error("No se pudo reproducir el audio de SoundPad:", error);
+        if (soundPadAudioRef.current === audio) {
+          stopSoundPad();
+        }
+        setSoundPadPlayback((current) =>
+          current?.requestId === requestId ? null : current,
+        );
+      });
+    };
+    audio.onerror = () => {
+      if (soundPadAudioRef.current !== audio) return;
+      console.error("No se pudo cargar el audio de SoundPad:", audio.error);
+      stopSoundPad();
+      setSoundPadPlayback((current) =>
+        current?.requestId === requestId ? null : current,
+      );
+    };
+    audio.onended = () => {
+      if (soundPadAudioRef.current !== audio) return;
+      stopSoundPad();
+      setSoundPadPlayback((current) =>
+        current?.requestId === requestId ? null : current,
+      );
+    };
+    soundPadAudioRef.current = audio;
+    soundPadActiveIdRef.current = assignment.soundId;
+    audio.load();
+    setSoundPadPlayback({
+      path: soundPath,
+      volume,
+      requestId,
+    });
+  };
+
+  const playSoundPadById = (soundId: unknown) => {
+    if (typeof soundId !== "string" || !/^\d{3}$/.test(soundId)) return;
+
+    if (soundPadConfigStatusRef.current === "loading") {
+      pendingSoundPadIdsRef.current.push(soundId);
+      return;
+    }
+
+    if (soundPadConfigStatusRef.current !== "ready") return;
+
+    const assignment = soundPadConfigRef.current?.assignments.find(
+      (candidate) => candidate.soundId === soundId,
+    );
+    if (!assignment) return;
+
+    const soundPath = resolveSoundPadPath(assignment);
+    if (!soundPath) return;
+
+    const previousSoundId = soundPadActiveIdRef.current;
+    const currentAudio = soundPadAudioRef.current;
+    if (currentAudio && previousSoundId === soundId) {
+      stopSoundPad();
+      return;
+    }
+
+    if (currentAudio) {
+      stopSoundPad();
+    }
+
+    playSoundPadAssignment(assignment);
+  };
+
   const socket = usePartySocket({
     host: env.NEXT_PUBLIC_PARTYKIT_URL,
     room: party.hash ?? "",
@@ -133,9 +358,13 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
       // TODO: Improve type safety
       const eventData = JSON.parse(event.data);
 
-      if (eventData.type === "horn") {
-        playThrottledHorn();
-      }
+		if (eventData.type === "horn") {
+			playHornById(eventData.soundId);
+		}
+
+		if (eventData.type === "soundpad") {
+			playSoundPadById(eventData.soundId);
+		}
 
       if (eventData.type === "play") {
         playerActionsRef.current?.play();

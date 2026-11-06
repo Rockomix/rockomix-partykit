@@ -38,7 +38,13 @@ import {
 import { orderByFairness } from "~/utils/array";
 import { chooseRatingPhrase, generateRatingScore } from "~/utils/rating";
 import { getQueueIndexes, moveInQueue } from "~/utils/playlist";
-import type { PlaylistOperationResult } from "~/shared/party-types";
+import type {
+  PlaylistOperationResult,
+  SoundPadConfig,
+} from "~/shared/party-types";
+import { SOUND_FILE_PATHS } from "~/generated/sound-inventory";
+
+const AUTHORIZED_SOUND_PATHS = new Set<string>(SOUND_FILE_PATHS);
 
 function safeParseJson(value: string): unknown {
   try {
@@ -91,6 +97,12 @@ const MarkAsPlayedSchema = z.object({
 
 const HornSchema = z.object({
 	type: z.literal("horn"),
+	soundId: z.string().optional(),
+});
+
+const SoundPadMessageSchema = z.object({
+	type: z.literal("soundpad"),
+	soundId: z.string().regex(/^\d{3}$/, "soundId must contain three digits"),
 });
 
 const PlaySchema = z.object({
@@ -129,6 +141,83 @@ const SetFairQueueSchema = z.object({
   enabled: z.boolean(),
 });
 
+const SoundPadAssignmentSchema = z.object({
+  padId: z.number().int(),
+  soundId: z.string().regex(/^\d{3}$/).nullable(),
+  soundPath: z.string().nullable().optional(),
+  volume: z.number().min(0).max(1),
+});
+
+const SoundPadConfigSchema = z
+  .object({
+    version: z.literal(1),
+    assignments: z.array(SoundPadAssignmentSchema).length(16),
+  })
+  .superRefine((config, context) => {
+    const padIds = new Set<number>();
+
+    for (const [index, assignment] of config.assignments.entries()) {
+      if (assignment.padId < 1 || assignment.padId > 16) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments", index, "padId"],
+          message: "padId must be between 1 and 16",
+        });
+      }
+
+      if (padIds.has(assignment.padId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments", index, "padId"],
+          message: "Duplicate padId",
+        });
+      }
+
+      padIds.add(assignment.padId);
+
+      const soundId = assignment.soundId;
+      const hasSoundId = typeof soundId === "string";
+      const hasSoundPath = typeof assignment.soundPath === "string";
+
+      if (hasSoundPath && !AUTHORIZED_SOUND_PATHS.has(assignment.soundPath!)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments", index, "soundPath"],
+          message: "Sound path is not in the generated inventory",
+        });
+      }
+
+      if (!hasSoundId && !hasSoundPath && assignment.soundId !== null) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments", index],
+          message: "Assignment must contain a sound reference or null",
+        });
+      }
+
+      if (
+        assignment.padId === 4 &&
+        (assignment.soundId !== null || assignment.soundPath != null || assignment.volume !== 1)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments", index],
+          message: "Pad 4 is reserved and cannot be assigned",
+        });
+      }
+    }
+
+    for (let padId = 1; padId <= 16; padId += 1) {
+      if (!padIds.has(padId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["assignments"],
+          message: `Missing padId ${padId}`,
+        });
+      }
+    }
+  });
+
 const MessageSchema = z.discriminatedUnion("type", [
 	AddVideoSchema,
 	RemoveVideoSchema,
@@ -138,6 +227,7 @@ const MessageSchema = z.discriminatedUnion("type", [
 	ResetSongSchema,
 	ToggleFullscreenSchema,
 	HornSchema,
+	SoundPadMessageSchema,
 	RatingRequestSchema,
   MoveVideoSchema,
   SetFairQueueSchema,
@@ -150,6 +240,92 @@ const INITIAL_KARAOKE_PARTY: KaraokeParty = {
 	},
 };
 
+const SOUND_PAD_STORAGE_KEY = "soundPad";
+const SOUND_PAD_GENERAL_STORAGE_KEY = "soundPadGeneral";
+
+function normalizeStoredSoundPadConfig(value: unknown): SoundPadConfig | null {
+	if (
+		typeof value !== "object" ||
+		value === null ||
+		!Array.isArray((value as { assignments?: unknown }).assignments)
+	) {
+		return null;
+	}
+
+	const assignments = (value as { assignments: unknown[] }).assignments;
+	if (assignments.length !== 16) return null;
+
+	return {
+		version: 1,
+		assignments: assignments.map((rawAssignment, index) => {
+			const raw = (rawAssignment ?? {}) as {
+				padId?: unknown;
+				soundId?: unknown;
+				soundPath?: unknown;
+				volume?: unknown;
+			};
+			const padId =
+				typeof raw.padId === "number" && Number.isInteger(raw.padId)
+					? raw.padId
+					: index + 1;
+			const soundPath =
+				typeof raw.soundPath === "string" || raw.soundPath === null
+					? raw.soundPath
+					: null;
+			const soundId =
+				typeof raw.soundId === "string" && /^\d{3}$/.test(raw.soundId)
+					? raw.soundId
+					: typeof raw.soundId === "number" &&
+					    Number.isInteger(raw.soundId) &&
+					    raw.soundId >= 0 &&
+					    raw.soundId <= 999
+					  ? String(raw.soundId).padStart(3, "0")
+					  : soundPath
+					    ? String(padId).padStart(3, "0")
+					    : null;
+
+			return {
+				padId,
+				soundId,
+				soundPath,
+				volume:
+					typeof raw.volume === "number" && Number.isFinite(raw.volume)
+						? raw.volume
+						: 1,
+			};
+		}),
+	};
+}
+
+function createInitialSoundPadConfig(): SoundPadConfig {
+  return {
+    version: 1,
+    assignments: Array.from({ length: 16 }, (_, index) => ({
+      padId: index + 1,
+      soundId: null,
+      soundPath: null,
+      volume: 1,
+    })),
+  };
+}
+
+function soundPadResponse(
+  body: unknown,
+  status = 200,
+  extraHeaders: Record<string, string> = {},
+): Response {
+  return new Response(status === 204 ? null : JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      ...extraHeaders,
+    },
+  });
+}
+
 export class PartyRoom extends Server {
 	karaokeParty: KaraokeParty | undefined;
 	activeRatingId: string | null = null;
@@ -161,6 +337,80 @@ export class PartyRoom extends Server {
 	}
 
 	override async onRequest(request: Request) {
+		const url = new URL(request.url);
+
+		const resource = url.searchParams.get("resource");
+
+		if (resource === "soundPad" || resource === "soundPadGeneral") {
+			const storageKey =
+				resource === "soundPadGeneral"
+					? SOUND_PAD_GENERAL_STORAGE_KEY
+					: SOUND_PAD_STORAGE_KEY;
+
+			if (request.method === "OPTIONS") {
+				return soundPadResponse(null, 204);
+			}
+
+			if (request.method === "GET") {
+					const storedValue = await this.ctx.storage.get<unknown>(
+					storageKey,
+				);
+					const storedConfig = normalizeStoredSoundPadConfig(storedValue);
+					if (
+						storedConfig &&
+						JSON.stringify(storedValue) !== JSON.stringify(storedConfig)
+					) {
+						await this.ctx.storage.put(storageKey, storedConfig);
+					}
+				return soundPadResponse(
+						storedConfig ?? createInitialSoundPadConfig(),
+					200,
+						{ "X-Sound-Pad-Exists": storedValue ? "true" : "false" },
+				);
+			}
+
+			if (request.method === "PUT") {
+				let payload: unknown;
+
+				try {
+					payload = await request.json();
+				} catch {
+					return soundPadResponse({ error: "Invalid JSON payload" }, 400);
+				}
+
+				const result = SoundPadConfigSchema.safeParse(payload);
+				if (!result.success) {
+					return soundPadResponse(
+						{
+							error: "Invalid Sound Pad configuration",
+							issues: result.error.issues,
+						},
+						400,
+					);
+				}
+
+					const existingConfig = normalizeStoredSoundPadConfig(
+						await this.ctx.storage.get<unknown>(storageKey),
+					);
+					const incomingByPadId = new Map(
+						result.data.assignments.map((assignment) => [assignment.padId, assignment]),
+					);
+					const mergedConfig: SoundPadConfig = {
+						version: 1,
+						assignments: (existingConfig?.assignments ?? result.data.assignments).map(
+							(existingAssignment) => ({
+								...existingAssignment,
+								...(incomingByPadId.get(existingAssignment.padId) ?? {}),
+							}),
+						),
+					};
+					await this.ctx.storage.put(storageKey, mergedConfig);
+					return soundPadResponse(mergedConfig);
+			}
+
+			return soundPadResponse({ error: "Method not allowed" }, 405);
+		}
+
 		if (request.method === "POST" && !this.karaokeParty) {
 			this.karaokeParty = INITIAL_KARAOKE_PARTY;
 			await this.ctx.storage.put("karaokeParty", this.karaokeParty);
@@ -316,6 +566,11 @@ export class PartyRoom extends Server {
 			}
 
 			case "horn": {
+				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "soundpad": {
 				this.broadcast(JSON.stringify(data));
 				return;
 			}
@@ -608,6 +863,13 @@ interface Env {
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
+
+		if (url.pathname === "/soundpad") {
+			const id = env.PartyRoom.idFromName("__soundpad-general__");
+			const stub = env.PartyRoom.get(id);
+			return stub.fetch(new Request(request));
+		}
+
 		const match = url.pathname.match(/^\/party\/([^/]+)$/);
 
 		if (!match) {

@@ -17,6 +17,27 @@ export type KaraokeParty = {
   };
 };
 
+export type SoundPadAssignment = {
+  padId: number;
+  soundId: string | null;
+  soundPath?: string | null;
+  volume: number;
+};
+
+export type SoundInventoryItem = {
+  key: string;
+  path: string;
+  name: string;
+  folder: string;
+  origin: "catalog" | "file";
+  soundId: string | null;
+};
+
+export type SoundPadConfig = {
+  version: 1;
+  assignments: SoundPadAssignment[];
+};
+
 export type Message =
   | {
       type: "add-video";
@@ -36,7 +57,8 @@ export type Message =
       type: "mark-as-played";
       id: string;
     }
-  | { type: "horn" }
+  | { type: "horn"; soundId?: string }
+  | { type: "soundpad"; soundId: string }
   | { type: "play" }
   | { type: "pause" }
   | {

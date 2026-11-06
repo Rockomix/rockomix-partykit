@@ -6,6 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "generate:sound-inventory": "node scripts/generate-sound-inventory.mjs",
+    "prebuild": "pnpm generate:sound-inventory",
+    "predev": "pnpm generate:sound-inventory",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "dev": "next dev",

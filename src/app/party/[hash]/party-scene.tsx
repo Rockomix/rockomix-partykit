@@ -42,6 +42,7 @@ import { AppTextBrand } from "~/components/app-text-brand";
 import { InvitePartyDialog } from "~/components/invite-party-dialog";
 import { getUrl } from "~/utils/url";
 import { moveInQueue } from "~/utils/playlist";
+import CoHostSoundPadFloatingPanel from "~/components/soundpad/cohost-soundpad-floating-panel";
 
 function getTitleSizeClass(title: string) {
   const length = title.trim().length;
@@ -303,6 +304,7 @@ export function PartyScene({
   const sendHorn = async () => {
     sendSocketMessage({
       type: "horn",
+      soundId: "001",
     } satisfies Message);
   };
 
@@ -677,6 +679,7 @@ export function PartyScene({
           </div>
         </div>
       </div>
+      {role === "COHOST" && <CoHostSoundPadFloatingPanel onTriggerSound={(soundId) => sendSocketMessage({ type: "soundpad", soundId })} />}
     </>
   );
 }
