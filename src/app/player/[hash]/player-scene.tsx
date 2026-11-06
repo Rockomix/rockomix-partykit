@@ -49,6 +49,7 @@ import {
 
 // Imports implementados por Kikekaraoke
 import { AUDIO, SOUND_BY_ID } from "~/constants/audio";
+import type { Howl } from "howler";
 
 const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
 
@@ -101,7 +102,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     volume: number;
     requestId: number;
   } | null>(null);
-  const soundPadAudioRef = useRef<HTMLAudioElement | null>(null);
+  const soundPadHowlRef = useRef<Howl | null>(null);
   const soundPadConfigRef = useRef<SoundPadConfig | null>(null);
   const soundPadConfigRequestRef = useRef<Promise<SoundPadConfig | null> | null>(
     null,
@@ -112,13 +113,13 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const soundPadActiveIdRef = useRef<string | null>(null);
 
   const stopSoundPad = useCallback(() => {
-    const audio = soundPadAudioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
+    soundPadRequestIdRef.current += 1;
+    const howl = soundPadHowlRef.current;
+    if (howl) {
+      howl.stop();
+      howl.unload();
     }
-    soundPadAudioRef.current = null;
+    soundPadHowlRef.current = null;
     soundPadActiveIdRef.current = null;
     setSoundPadPlayback(null);
   }, []);
@@ -276,44 +277,55 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
 
     soundPadRequestIdRef.current += 1;
     const requestId = soundPadRequestIdRef.current;
-    const audio = new Audio(soundPath);
-    audio.volume = volume;
-    audio.preload = "auto";
-    audio.oncanplaythrough = () => {
-      if (soundPadAudioRef.current !== audio) return;
-      void audio.play().catch((error: unknown) => {
-        console.error("No se pudo reproducir el audio de SoundPad:", error);
-        if (soundPadAudioRef.current === audio) {
-          stopSoundPad();
-        }
-        setSoundPadPlayback((current) =>
-          current?.requestId === requestId ? null : current,
-        );
-      });
-    };
-    audio.onerror = () => {
-      if (soundPadAudioRef.current !== audio) return;
-      console.error("No se pudo cargar el audio de SoundPad:", audio.error);
-      stopSoundPad();
-      setSoundPadPlayback((current) =>
-        current?.requestId === requestId ? null : current,
-      );
-    };
-    audio.onended = () => {
-      if (soundPadAudioRef.current !== audio) return;
-      stopSoundPad();
-      setSoundPadPlayback((current) =>
-        current?.requestId === requestId ? null : current,
-      );
-    };
-    soundPadAudioRef.current = audio;
     soundPadActiveIdRef.current = assignment.soundId;
-    audio.load();
     setSoundPadPlayback({
       path: soundPath,
       volume,
       requestId,
     });
+
+    void import("howler")
+      .then(({ Howl }) => {
+        if (soundPadRequestIdRef.current !== requestId) return;
+
+        let howl: Howl;
+        const cleanUpHowl = () => {
+          if (soundPadHowlRef.current !== howl) return;
+          soundPadHowlRef.current = null;
+          soundPadActiveIdRef.current = null;
+          howl.unload();
+          setSoundPadPlayback((current) =>
+            current?.requestId === requestId ? null : current,
+          );
+        };
+
+        howl = new Howl({
+          src: [soundPath],
+          volume,
+          html5: true,
+          onloaderror: (_id, error) => {
+            console.error("No se pudo cargar el audio de SoundPad:", error);
+            cleanUpHowl();
+          },
+          onplayerror: (_id, error) => {
+            console.error("No se pudo reproducir el audio de SoundPad:", error);
+            cleanUpHowl();
+          },
+          onend: cleanUpHowl,
+        });
+        soundPadHowlRef.current = howl;
+        howl.play();
+      })
+      .catch((error: unknown) => {
+        console.error("No se pudo inicializar el audio de SoundPad:", error);
+        if (soundPadRequestIdRef.current === requestId) {
+          soundPadActiveIdRef.current = null;
+          soundPadHowlRef.current = null;
+          setSoundPadPlayback((current) =>
+            current?.requestId === requestId ? null : current,
+          );
+        }
+      });
   };
 
   const playSoundPadById = (soundId: unknown) => {
@@ -335,13 +347,13 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     if (!soundPath) return;
 
     const previousSoundId = soundPadActiveIdRef.current;
-    const currentAudio = soundPadAudioRef.current;
-    if (currentAudio && previousSoundId === soundId) {
+    const currentHowl = soundPadHowlRef.current;
+    if (previousSoundId === soundId) {
       stopSoundPad();
       return;
     }
 
-    if (currentAudio) {
+    if (currentHowl || previousSoundId !== null) {
       stopSoundPad();
     }
 
