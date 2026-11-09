@@ -20,6 +20,7 @@ function createSoundInventory(): SoundInventoryItem[] {
     folder: getFolder(path),
     origin: "catalog" as const,
     soundId,
+    available: true,
   }));
 
   const catalogPaths = new Set<string>(catalogItems.map((item) => item.path));
@@ -32,6 +33,7 @@ function createSoundInventory(): SoundInventoryItem[] {
     folder: getFolder(path),
     origin: "file" as const,
     soundId: null,
+    available: true,
   }));
 
   return [...catalogItems, ...discoveredItems];

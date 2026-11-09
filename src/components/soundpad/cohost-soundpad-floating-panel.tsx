@@ -75,11 +75,11 @@ export default function CoHostSoundPadFloatingPanel({ onTriggerSound }: { onTrig
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
+  const [discoveredPaths, setDiscoveredPaths] = useState<Set<string>>(() => new Set(SOUND_FILE_PATHS));
 
   const baseUrl = env.NEXT_PUBLIC_PARTYKIT_URL.replace(/\/$/, "");
   const generalUrl = `${baseUrl}/soundpad?resource=soundPadGeneral`;
   const catalogPaths = useMemo(() => new Set<string>(Object.values(SOUND_BY_ID)), []);
-  const discoveredPaths = useMemo(() => new Set<string>(SOUND_FILE_PATHS), []);
 
   const loadConfiguration = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true);
@@ -100,6 +100,19 @@ export default function CoHostSoundPadFloatingPanel({ onTriggerSound }: { onTrig
       setConfig(generalData);
       setSource("general");
       hasLoadedRef.current = true;
+
+      try {
+        const inventoryResponse = await fetch("/api/soundpad/inventory", { signal, cache: "no-store" });
+        const inventoryData: unknown = await inventoryResponse.json();
+        if (inventoryResponse.ok && typeof inventoryData === "object" && inventoryData !== null && Array.isArray((inventoryData as { records?: unknown }).records)) {
+          const dynamicPaths = (inventoryData as { records: Array<{ path?: unknown; available?: unknown }> }).records
+            .filter((record): record is { path: string; available: unknown } => record.available === true && typeof record.path === "string")
+            .map((record) => record.path);
+          setDiscoveredPaths(new Set<string>([...SOUND_FILE_PATHS, ...dynamicPaths]));
+        }
+      } catch (inventoryError) {
+        if (inventoryError instanceof DOMException && inventoryError.name === "AbortError") throw inventoryError;
+      }
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === "AbortError") return;
       setConfig(null);

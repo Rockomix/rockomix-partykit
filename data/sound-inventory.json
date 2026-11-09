@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "soundId": "001",
+      "path": "/sounds/fxs/kikekaraoke-envivo.mp3",
+      "name": "kikekaraoke-envivo.mp3",
+      "available": true
+    },
+    {
+      "soundId": "002",
+      "path": "/sounds/buzzer.mp3",
+      "name": "buzzer.mp3",
+      "available": true
+    },
+    {
+      "soundId": "003",
+      "path": "/sounds/fx_califica/10_aplusos.mp3",
+      "name": "10_aplusos.mp3",
+      "available": true
+    },
+    {
+      "soundId": "004",
+      "path": "/sounds/fx_califica/6_dun_dun_dun.mp3",
+      "name": "6_dun_dun_dun.mp3",
+      "available": true
+    },
+    {
+      "soundId": "005",
+      "path": "/sounds/fx_califica/6_grillos.mp3",
+      "name": "6_grillos.mp3",
+      "available": true
+    },
+    {
+      "soundId": "006",
+      "path": "/sounds/fx_califica/7_aww.mp3",
+      "name": "7_aww.mp3",
+      "available": true
+    },
+    {
+      "soundId": "007",
+      "path": "/sounds/fx_califica/7_sad_music.mp3",
+      "name": "7_sad_music.mp3",
+      "available": true
+    },
+    {
+      "soundId": "008",
+      "path": "/sounds/fx_califica/7_titanic_flauta.mp3",
+      "name": "7_titanic_flauta.mp3",
+      "available": true
+    },
+    {
+      "soundId": "009",
+      "path": "/sounds/fx_califica/8_chiquillos.mp3",
+      "name": "8_chiquillos.mp3",
+      "available": true
+    },
+    {
+      "soundId": "010",
+      "path": "/sounds/fx_califica/8_risa_kid.mp3",
+      "name": "8_risa_kid.mp3",
+      "available": true
+    },
+    {
+      "soundId": "011",
+      "path": "/sounds/fx_califica/9_ultrainstinto.mp3",
+      "name": "9_ultrainstinto.mp3",
+      "available": true
+    },
+    {
+      "soundId": "012",
+      "path": "/sounds/fx_califica/9_wow.mp3",
+      "name": "9_wow.mp3",
+      "available": true
+    },
+    {
+      "soundId": "013",
+      "path": "/sounds/fx_califica/ding_ding_ding_mezcla.mp3",
+      "name": "ding_ding_ding_mezcla.mp3",
+      "available": true
+    },
+    {
+      "soundId": "014",
+      "path": "/sounds/fxs/fanfarrias.mp3",
+      "name": "fanfarrias.mp3",
+      "available": true
+    },
+    {
+      "soundId": "015",
+      "path": "/sounds/fxs/intro_sonido_karaomix.mp3",
+      "name": "intro_sonido_karaomix.mp3",
+      "available": true
+    },
+    {
+      "soundId": "016",
+      "path": "/sounds/fxs/la_fiesta_tiene_luz.mp3",
+      "name": "la_fiesta_tiene_luz.mp3",
+      "available": true
+    },
+    {
+      "soundId": "017",
+      "path": "/sounds/fxs/mambos_socios_del_ritmo.mp3",
+      "name": "mambos_socios_del_ritmo.mp3",
+      "available": true
+    },
+    {
+      "soundId": "018",
+      "path": "/sounds/fxs/parrapapa.mp3",
+      "name": "parrapapa.mp3",
+      "available": true
+    },
+    {
+      "soundId": "019",
+      "path": "/sounds/fxs/promo_reggaeton.mp3",
+      "name": "promo_reggaeton.mp3",
+      "available": true
+    }
+  ]
+}

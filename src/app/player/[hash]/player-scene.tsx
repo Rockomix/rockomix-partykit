@@ -51,7 +51,7 @@ import {
 import { AUDIO, SOUND_BY_ID } from "~/constants/audio";
 import type { Howl } from "howler";
 
-const INSTITUTIONAL_VIDEO_ID = "oL1w1Xv9f7A";
+const INSTITUTIONAL_VIDEO_ID = "rVZVjiaxYps";
 
 type Props = {
   party: Party;
@@ -59,19 +59,30 @@ type Props = {
 };
 
 type SoundPadUseSoundPlayerProps = {
+  origin: "pad" | "rating";
   path: string;
   volume: number;
   requestId: number;
+  shouldPlay: boolean;
   isRequestCurrent: (requestId: number) => boolean;
-  onFinish: (requestId: number) => void;
+  onFinish: (origin: "pad" | "rating", requestId: number) => void;
+  onReady: (
+    origin: "pad" | "rating",
+    requestId: number,
+    play: () => void,
+    stop: () => void,
+  ) => void;
 };
 
 function SoundPadUseSoundPlayer({
+  origin,
   path,
   volume,
   requestId,
+  shouldPlay,
   isRequestCurrent,
   onFinish,
+  onReady,
 }: SoundPadUseSoundPlayerProps) {
   const mountedRef = useRef(true);
   const [play, { sound, stop }] = useSound(path, {
@@ -85,19 +96,22 @@ function SoundPadUseSoundPlayer({
     onloaderror: function (this: Howl, _soundId: number, error: unknown) {
       console.error("No se pudo cargar el audio de SoundPad:", error);
       this.unload();
-      onFinish(requestId);
+      onFinish(origin, requestId);
     },
     onplayerror: function (this: Howl, _soundId: number, error: unknown) {
       console.error("No se pudo reproducir el audio de SoundPad:", error);
       this.unload();
-      onFinish(requestId);
+      onFinish(origin, requestId);
     },
-    onend: () => onFinish(requestId),
+    onend: () => onFinish(origin, requestId),
   });
 
   useEffect(() => {
     mountedRef.current = true;
     if (sound && isRequestCurrent(requestId)) {
+      onReady(origin, requestId, play, stop);
+    }
+    if (sound && shouldPlay && isRequestCurrent(requestId)) {
       play();
     }
 
@@ -108,7 +122,7 @@ function SoundPadUseSoundPlayer({
         sound.unload();
       }
     };
-  }, [isRequestCurrent, play, requestId, sound, stop]);
+  }, [isRequestCurrent, onFinish, onReady, origin, play, requestId, shouldPlay, sound, stop]);
 
   return null;
 }
@@ -157,6 +171,12 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     volume: number;
     requestId: number;
   } | null>(null);
+  const [ratingSoundPlayback, setRatingSoundPlayback] = useState<{
+    path: string;
+    volume: number;
+    requestId: number;
+    shouldPlay: boolean;
+  } | null>(null);
   const soundPadConfigRef = useRef<SoundPadConfig | null>(null);
   const soundPadConfigRequestRef = useRef<Promise<SoundPadConfig | null> | null>(
     null,
@@ -165,24 +185,142 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   const soundPadRequestIdRef = useRef(0);
   const pendingSoundPadIdsRef = useRef<string[]>([]);
   const soundPadActiveIdRef = useRef<string | null>(null);
+  const ratingRequestIdRef = useRef(0);
+  const ratingSoundRatingIdRef = useRef<string | null>(null);
+  const activeRatingRequestIdRef = useRef<number | null>(null);
+  const ratingSoundCompleteRef = useRef<(() => void) | null>(null);
+  const ratingSoundUnavailableRef = useRef<(() => void) | null>(null);
+  const ratingSoundPlayRef = useRef<(() => void) | null>(null);
+  const ratingSoundStopRef = useRef<(() => void) | null>(null);
+  const soundPadStopRef = useRef<(() => void) | null>(null);
 
   const stopSoundPad = useCallback(() => {
     soundPadRequestIdRef.current += 1;
     soundPadActiveIdRef.current = null;
+    soundPadStopRef.current?.();
+    soundPadStopRef.current = null;
     setSoundPadPlayback(null);
   }, []);
 
   const isSoundPadRequestCurrent = useCallback(
-    (requestId: number) => soundPadRequestIdRef.current === requestId,
+    (requestId: number) =>
+      soundPadRequestIdRef.current === requestId &&
+      activeRatingRequestIdRef.current === null,
     [],
   );
 
-  const finishSoundPadRequest = useCallback((requestId: number) => {
-    if (soundPadRequestIdRef.current !== requestId) return;
-    soundPadRequestIdRef.current += 1;
-    soundPadActiveIdRef.current = null;
-    setSoundPadPlayback(null);
+  const isRatingRequestCurrent = useCallback(
+    (requestId: number) => ratingRequestIdRef.current === requestId,
+    [],
+  );
+
+  const finishSoundRequest = useCallback(
+    (origin: "pad" | "rating", requestId: number) => {
+      if (origin === "pad") {
+        if (soundPadRequestIdRef.current !== requestId) return;
+        soundPadRequestIdRef.current += 1;
+        soundPadActiveIdRef.current = null;
+        soundPadStopRef.current = null;
+        setSoundPadPlayback(null);
+        return;
+      }
+
+      if (ratingRequestIdRef.current !== requestId) return;
+      const wasActive = activeRatingRequestIdRef.current === requestId;
+      ratingRequestIdRef.current += 1;
+      ratingSoundRatingIdRef.current = null;
+      activeRatingRequestIdRef.current = null;
+      setRatingSoundPlayback(null);
+      const onComplete = wasActive
+        ? ratingSoundCompleteRef.current
+        : ratingSoundUnavailableRef.current;
+      ratingSoundCompleteRef.current = null;
+      ratingSoundUnavailableRef.current = null;
+      ratingSoundPlayRef.current = null;
+      ratingSoundStopRef.current = null;
+      onComplete?.();
+    },
+    [],
+  );
+
+  const prepareRatingSound = useCallback(
+    (ratingId: string, path: string, onUnavailable: () => void) => {
+      ratingRequestIdRef.current += 1;
+      const requestId = ratingRequestIdRef.current;
+      ratingSoundRatingIdRef.current = ratingId;
+      ratingSoundUnavailableRef.current = onUnavailable;
+      ratingSoundCompleteRef.current = null;
+      ratingSoundPlayRef.current = null;
+      ratingSoundStopRef.current?.();
+      ratingSoundStopRef.current = null;
+      setRatingSoundPlayback({ path, volume: 1, requestId, shouldPlay: false });
+    },
+    [],
+  );
+
+  const playRatingSound = useCallback(
+    (ratingId: string, onComplete: () => void) => {
+      const requestId = ratingRequestIdRef.current;
+      if (
+        ratingSoundRatingIdRef.current !== ratingId ||
+        !isRatingRequestCurrent(requestId)
+      ) {
+        onComplete();
+        return;
+      }
+
+      activeRatingRequestIdRef.current = requestId;
+      ratingSoundCompleteRef.current = onComplete;
+      ratingSoundUnavailableRef.current = null;
+      stopSoundPad();
+      if (ratingSoundPlayRef.current) {
+        ratingSoundPlayRef.current();
+      } else {
+        setRatingSoundPlayback((current) =>
+          current?.requestId === requestId
+            ? { ...current, shouldPlay: true }
+            : current,
+        );
+      }
+    },
+    [isRatingRequestCurrent, stopSoundPad],
+  );
+
+  const cancelRatingSound = useCallback((ratingId: string) => {
+    if (ratingSoundRatingIdRef.current !== ratingId) return;
+    const wasActive = activeRatingRequestIdRef.current !== null;
+    ratingRequestIdRef.current += 1;
+    ratingSoundRatingIdRef.current = null;
+    activeRatingRequestIdRef.current = null;
+    ratingSoundCompleteRef.current = null;
+    ratingSoundUnavailableRef.current = null;
+    ratingSoundPlayRef.current = null;
+    if (wasActive) ratingSoundStopRef.current?.();
+    ratingSoundStopRef.current = null;
+    setRatingSoundPlayback(null);
   }, []);
+
+  const registerSoundControls = useCallback(
+    (
+      origin: "pad" | "rating",
+      requestId: number,
+      play: () => void,
+      stop: () => void,
+    ) => {
+      if (origin === "pad") {
+        if (soundPadRequestIdRef.current === requestId) {
+          soundPadStopRef.current = stop;
+        }
+        return;
+      }
+
+      if (ratingRequestIdRef.current === requestId) {
+        ratingSoundPlayRef.current = play;
+        ratingSoundStopRef.current = stop;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     return stopSoundPad;
@@ -346,6 +484,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
   };
 
   const playSoundPadById = (soundId: unknown) => {
+    if (activeRatingRequestIdRef.current !== null) return;
     if (typeof soundId !== "string" || !/^\d{3}$/.test(soundId)) return;
 
     if (soundPadConfigStatusRef.current === "loading") {
@@ -758,11 +897,27 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
             {soundPadPlayback ? (
               <SoundPadUseSoundPlayer
                 key={soundPadPlayback.requestId}
+                origin="pad"
                 path={soundPadPlayback.path}
                 volume={soundPadPlayback.volume}
                 requestId={soundPadPlayback.requestId}
+                shouldPlay={true}
                 isRequestCurrent={isSoundPadRequestCurrent}
-                onFinish={finishSoundPadRequest}
+                onFinish={finishSoundRequest}
+                onReady={registerSoundControls}
+              />
+            ) : null}
+            {ratingSoundPlayback ? (
+              <SoundPadUseSoundPlayer
+                key={`rating-${ratingSoundPlayback.requestId}`}
+                origin="rating"
+                path={ratingSoundPlayback.path}
+                volume={ratingSoundPlayback.volume}
+                requestId={ratingSoundPlayback.requestId}
+                shouldPlay={ratingSoundPlayback.shouldPlay}
+                isRequestCurrent={isRatingRequestCurrent}
+                onFinish={finishSoundRequest}
+                onReady={registerSoundControls}
               />
             ) : null}
             {ratingResult ? (
@@ -772,6 +927,9 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                 ) : null}
                 <RatingOverlay
                   result={ratingResult}
+                  onPrepareRevealSound={prepareRatingSound}
+                  onPlayRevealSound={playRatingSound}
+                  onCancelRevealSound={cancelRatingSound}
                   onComplete={() => setRatingResult(null)}
                   onReveal={() => {
                     if (

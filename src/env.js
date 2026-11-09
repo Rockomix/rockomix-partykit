@@ -9,6 +9,7 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
     YOUTUBE_API_KEY: z.string(),
+    SOUND_INVENTORY_SYNC_SECRET: z.string().min(32).optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -31,6 +32,7 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY,
+    SOUND_INVENTORY_SYNC_SECRET: process.env.SOUND_INVENTORY_SYNC_SECRET,
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_PARTYKIT_URL: process.env.NEXT_PUBLIC_PARTYKIT_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,

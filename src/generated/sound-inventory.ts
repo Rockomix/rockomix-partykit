@@ -13,5 +13,11 @@ export const SOUND_FILE_PATHS = [
   "/sounds/fx_califica/9_ultrainstinto.mp3",
   "/sounds/fx_califica/9_wow.mp3",
   "/sounds/fx_califica/ding_ding_ding_mezcla.mp3",
-  "/sounds/fxs/kikekaraoke-envivo.mp3"
+  "/sounds/fxs/fanfarrias.mp3",
+  "/sounds/fxs/intro_sonido_karaomix.mp3",
+  "/sounds/fxs/kikekaraoke-envivo.mp3",
+  "/sounds/fxs/la_fiesta_tiene_luz.mp3",
+  "/sounds/fxs/mambos_socios_del_ritmo.mp3",
+  "/sounds/fxs/parrapapa.mp3",
+  "/sounds/fxs/promo_reggaeton.mp3"
 ] as const;

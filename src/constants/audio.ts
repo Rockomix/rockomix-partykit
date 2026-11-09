@@ -2,9 +2,11 @@
 // Catálogo central de efectos de sonido de Rockomix
 // =====================================================
 
+import { SOUND_BY_ID } from "~/shared/sound-inventory-rules.mjs";
+
 export const AUDIO = {
   FXS: {
-    KIKERADIO: "/sounds/fxs/kikekaraoke-envivo.mp3",
+    KIKERADIO: SOUND_BY_ID["001"],
   },
 
   PLAYER: {
@@ -13,11 +15,7 @@ export const AUDIO = {
 } as const;
 
 // CATÁLOGO CENTRAL DE EFECTOS DE SONIDO
-export const SOUND_BY_ID = {
-  "001": AUDIO.FXS.KIKERADIO,
-  // "002": AUDIO.FXS.APLAUSOS,
-  // "003": AUDIO.FXS.REDOBLE,
-} as const;
+export { SOUND_BY_ID };
 
 // SOUNDPAD DINÁMICO: las asignaciones de PAD no pertenecen a este catálogo
 // estático. Se almacenan como datos operativos editables en el Durable Object

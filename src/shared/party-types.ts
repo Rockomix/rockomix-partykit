@@ -31,6 +31,14 @@ export type SoundInventoryItem = {
   folder: string;
   origin: "catalog" | "file";
   soundId: string | null;
+  available?: boolean;
+};
+
+export type SoundInventoryRecord = {
+  soundId: string;
+  path: string;
+  name: string;
+  available: boolean;
 };
 
 export type SoundPadConfig = {

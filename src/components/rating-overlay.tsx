@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { decode } from "html-entities";
+import useSound from "use-sound";
 import type { RatingScore } from "~/utils/rating";
 import {
   getRatingRevealSound,
@@ -21,6 +22,13 @@ type Props = {
   result: RatingResult;
   onComplete: () => void;
   onReveal?: () => void;
+  onPrepareRevealSound: (
+    ratingId: string,
+    path: string,
+    onUnavailable: () => void,
+  ) => void;
+  onPlayRevealSound: (ratingId: string, onComplete: () => void) => void;
+  onCancelRevealSound: (ratingId: string) => void;
 };
 
 const REVEAL_AT = 4063;
@@ -30,11 +38,32 @@ const SPIN_HIT_TIMES = [
   2965, 3414,
 ] as const;
 
-export function RatingOverlay({ result, onComplete, onReveal }: Props) {
+export function RatingOverlay({
+  result,
+  onComplete,
+  onReveal,
+  onPrepareRevealSound,
+  onPlayRevealSound,
+  onCancelRevealSound,
+}: Props) {
   const [displayedScore, setDisplayedScore] = useState(1);
   const [revealed, setRevealed] = useState(false);
   const onCompleteRef = useRef(onComplete);
   const onRevealRef = useRef(onReveal);
+  const onPrepareRevealSoundRef = useRef(onPrepareRevealSound);
+  const onPlayRevealSoundRef = useRef(onPlayRevealSound);
+  const onCancelRevealSoundRef = useRef(onCancelRevealSound);
+  const startAnimationRef = useRef<(() => void) | null>(null);
+  const stopSpinRef = useRef<(() => void) | null>(null);
+  const [playSpin, { sound: spinSound, stop: stopSpin }] = useSound(
+    RATING_SPIN_SOUND,
+    {
+      interrupt: true,
+      onplay: () => startAnimationRef.current?.(),
+      onplayerror: () => startAnimationRef.current?.(),
+      onloaderror: () => startAnimationRef.current?.(),
+    },
+  );
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -45,10 +74,24 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
   }, [onReveal]);
 
   useEffect(() => {
-    const spinAudio = new Audio(RATING_SPIN_SOUND);
-    const revealAudio = new Audio(getRatingRevealSound(result.score));
-    spinAudio.preload = "auto";
-    revealAudio.preload = "auto";
+    onPrepareRevealSoundRef.current = onPrepareRevealSound;
+    onPlayRevealSoundRef.current = onPlayRevealSound;
+    onCancelRevealSoundRef.current = onCancelRevealSound;
+  }, [onCancelRevealSound, onPlayRevealSound, onPrepareRevealSound]);
+
+  useEffect(() => {
+    stopSpinRef.current = stopSpin;
+  }, [stopSpin]);
+
+  useEffect(() => {
+    if (!spinSound) return;
+    return () => {
+      spinSound.unload();
+    };
+  }, [spinSound]);
+
+  useEffect(() => {
+    const revealSoundPath = getRatingRevealSound(result.score);
 
     let spinTimer: number | null = null;
     let revealTimer: number | null = null;
@@ -60,13 +103,6 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
     let spinStartedAt: number | null = null;
     let nextHitIndex = 0;
     let animationScore = 1;
-
-    const stopAndRelease = (audio: HTMLAudioElement) => {
-      audio.pause();
-      audio.currentTime = 0;
-      audio.removeAttribute("src");
-      audio.load();
-    };
 
     const tryComplete = () => {
       if (
@@ -85,8 +121,11 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
       tryComplete();
     };
 
-    revealAudio.addEventListener("ended", markFinalAudioComplete);
-    revealAudio.addEventListener("error", markFinalAudioComplete);
+    onPrepareRevealSoundRef.current(
+      result.ratingId,
+      revealSoundPath,
+      markFinalAudioComplete,
+    );
 
     const scheduleNextHit = () => {
       if (spinStartedAt === null || nextHitIndex >= SPIN_HIT_TIMES.length) {
@@ -114,7 +153,7 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
 
     const revealResult = () => {
       if (spinTimer !== null) window.clearTimeout(spinTimer);
-      stopAndRelease(spinAudio);
+      stopSpinRef.current?.();
       setDisplayedScore(result.score);
       setRevealed(true);
       onRevealRef.current?.();
@@ -122,7 +161,7 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
         minimumExposureComplete = true;
         tryComplete();
       }, RESULT_DISPLAY_DURATION);
-      void revealAudio.play().catch(markFinalAudioComplete);
+      onPlayRevealSoundRef.current(result.ratingId, markFinalAudioComplete);
     };
 
     const startAnimation = () => {
@@ -132,21 +171,28 @@ export function RatingOverlay({ result, onComplete, onReveal }: Props) {
       revealTimer = window.setTimeout(revealResult, REVEAL_AT);
     };
 
-    spinAudio.addEventListener("playing", startAnimation);
-    void spinAudio.play().catch(startAnimation);
+    startAnimationRef.current = startAnimation;
 
     return () => {
       disposed = true;
       if (spinTimer !== null) window.clearTimeout(spinTimer);
       if (revealTimer !== null) window.clearTimeout(revealTimer);
       if (exposureTimer !== null) window.clearTimeout(exposureTimer);
-      spinAudio.removeEventListener("playing", startAnimation);
-      revealAudio.removeEventListener("ended", markFinalAudioComplete);
-      revealAudio.removeEventListener("error", markFinalAudioComplete);
-      stopAndRelease(spinAudio);
-      stopAndRelease(revealAudio);
+      if (startAnimationRef.current === startAnimation) {
+        startAnimationRef.current = null;
+      }
+      stopSpinRef.current?.();
+      onCancelRevealSoundRef.current(result.ratingId);
     };
   }, [result.ratingId, result.score]);
+
+  useEffect(() => {
+    if (spinSound) {
+      playSpin();
+    }
+
+    return () => stopSpin();
+  }, [playSpin, result.ratingId, result.score, spinSound, stopSpin]);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/35 p-4 text-center">

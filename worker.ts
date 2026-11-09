@@ -40,11 +40,14 @@ import { chooseRatingPhrase, generateRatingScore } from "~/utils/rating";
 import { getQueueIndexes, moveInQueue } from "~/utils/playlist";
 import type {
   PlaylistOperationResult,
+  SoundInventoryRecord,
   SoundPadConfig,
 } from "~/shared/party-types";
 import { SOUND_FILE_PATHS } from "~/generated/sound-inventory";
+import { normalizeSoundPath, reconcileSoundInventory, soundFileName } from "~/shared/sound-inventory-rules.mjs";
+import { SOUND_BY_ID } from "~/constants/audio";
 
-const AUTHORIZED_SOUND_PATHS = new Set<string>(SOUND_FILE_PATHS);
+const AUTHORIZED_SOUND_PATHS = new Set<string>([...SOUND_FILE_PATHS, ...Object.values(SOUND_BY_ID)]);
 
 function safeParseJson(value: string): unknown {
   try {
@@ -148,7 +151,7 @@ const SoundPadAssignmentSchema = z.object({
   volume: z.number().min(0).max(1),
 });
 
-const SoundPadConfigSchema = z
+const createSoundPadConfigSchema = (authorizedSoundPaths: Set<string>) => z
   .object({
     version: z.literal(1),
     assignments: z.array(SoundPadAssignmentSchema).length(16),
@@ -179,7 +182,7 @@ const SoundPadConfigSchema = z
       const hasSoundId = typeof soundId === "string";
       const hasSoundPath = typeof assignment.soundPath === "string";
 
-      if (hasSoundPath && !AUTHORIZED_SOUND_PATHS.has(assignment.soundPath!)) {
+      if (hasSoundPath && !authorizedSoundPaths.has(assignment.soundPath!)) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["assignments", index, "soundPath"],
@@ -242,8 +245,31 @@ const INITIAL_KARAOKE_PARTY: KaraokeParty = {
 
 const SOUND_PAD_STORAGE_KEY = "soundPad";
 const SOUND_PAD_GENERAL_STORAGE_KEY = "soundPadGeneral";
+const SOUND_INVENTORY_STORAGE_KEY = "soundInventory";
 
-function normalizeStoredSoundPadConfig(value: unknown): SoundPadConfig | null {
+function normalizeSoundInventory(value: unknown): SoundInventoryRecord[] {
+	if (typeof value !== "object" || value === null || !Array.isArray((value as { records?: unknown }).records)) return [];
+	const records = (value as { records: unknown[] }).records;
+	const seenIds = new Set<string>();
+	const seenPaths = new Set<string>();
+	const normalized: SoundInventoryRecord[] = [];
+	for (const rawValue of records) {
+		if (typeof rawValue !== "object" || rawValue === null) continue;
+		const raw = rawValue as Partial<SoundInventoryRecord>;
+		const path = typeof raw.path === "string" ? normalizeSoundPath(raw.path) : null;
+		if (!path || typeof raw.soundId !== "string" || !/^\d{3}$/.test(raw.soundId) || seenIds.has(raw.soundId) || seenPaths.has(path)) continue;
+		seenIds.add(raw.soundId);
+		seenPaths.add(path);
+		normalized.push({ soundId: raw.soundId, path, name: typeof raw.name === "string" ? raw.name : soundFileName(path), available: raw.available === true });
+	}
+	return normalized;
+}
+
+async function getStoredSoundInventory(storage: DurableObjectStorage): Promise<SoundInventoryRecord[]> {
+	return normalizeSoundInventory(await storage.get<unknown>(SOUND_INVENTORY_STORAGE_KEY));
+}
+
+function normalizeStoredSoundPadConfig(value: unknown, inventory: SoundInventoryRecord[] = []): SoundPadConfig | null {
 	if (
 		typeof value !== "object" ||
 		value === null ||
@@ -254,6 +280,8 @@ function normalizeStoredSoundPadConfig(value: unknown): SoundPadConfig | null {
 
 	const assignments = (value as { assignments: unknown[] }).assignments;
 	if (assignments.length !== 16) return null;
+	const idByPath = new Map(inventory.map((record) => [record.path, record.soundId]));
+	for (const [soundId, soundPath] of Object.entries(SOUND_BY_ID)) idByPath.set(soundPath, soundId);
 
 	return {
 		version: 1,
@@ -272,17 +300,14 @@ function normalizeStoredSoundPadConfig(value: unknown): SoundPadConfig | null {
 				typeof raw.soundPath === "string" || raw.soundPath === null
 					? raw.soundPath
 					: null;
-			const soundId =
+			const pathSoundId = soundPath ? idByPath.get(soundPath) : undefined;
+			const legacySoundId =
 				typeof raw.soundId === "string" && /^\d{3}$/.test(raw.soundId)
 					? raw.soundId
-					: typeof raw.soundId === "number" &&
-					    Number.isInteger(raw.soundId) &&
-					    raw.soundId >= 0 &&
-					    raw.soundId <= 999
-					  ? String(raw.soundId).padStart(3, "0")
-					  : soundPath
-					    ? String(padId).padStart(3, "0")
-					    : null;
+					: typeof raw.soundId === "number" && Number.isInteger(raw.soundId) && raw.soundId >= 0 && raw.soundId <= 999
+						? String(raw.soundId).padStart(3, "0")
+						: null;
+			const soundId = pathSoundId ?? legacySoundId;
 
 			return {
 				padId,
@@ -319,8 +344,8 @@ function soundPadResponse(
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       ...extraHeaders,
     },
   });
@@ -341,11 +366,102 @@ export class PartyRoom extends Server {
 
 		const resource = url.searchParams.get("resource");
 
+		if (resource === "soundInventory") {
+			if (request.method === "OPTIONS") return soundPadResponse(null, 204);
+			if (request.method !== "GET") return soundPadResponse({ error: "Method not allowed" }, 405);
+			return soundPadResponse({ records: await getStoredSoundInventory(this.ctx.storage), source: "durable-object" });
+		}
+
+		if (resource === "soundInventoryScan" || resource === "soundInventorySync") {
+			if (request.method === "OPTIONS") return soundPadResponse(null, 204);
+			if (request.method !== "POST") return soundPadResponse({ error: "Method not allowed" }, 405);
+
+			let discoveredPaths: unknown = SOUND_FILE_PATHS;
+			let previousRecords: SoundInventoryRecord[] = [];
+			let isCompleteScan = false;
+			if (resource === "soundInventorySync") {
+				try {
+					const payload = await request.json() as { paths?: unknown; previousRecords?: unknown; isCompleteScan?: unknown };
+					discoveredPaths = payload.paths;
+					isCompleteScan = payload.isCompleteScan === true;
+					if (payload.previousRecords !== undefined) {
+						if (!Array.isArray(payload.previousRecords)) return soundPadResponse({ error: "Invalid inventory manifest" }, 400);
+						previousRecords = payload.previousRecords as SoundInventoryRecord[];
+					}
+				} catch {
+					return soundPadResponse({ error: "Invalid JSON payload" }, 400);
+				}
+			}
+			if (!Array.isArray(discoveredPaths)) return soundPadResponse({ error: "Invalid sound paths" }, 400);
+			const normalizedPaths: string[] = [];
+			for (const rawPath of discoveredPaths) {
+				if (typeof rawPath !== "string") return soundPadResponse({ error: "Invalid sound path" }, 400);
+				const normalizedPath = normalizeSoundPath(rawPath);
+				if (!normalizedPath || normalizedPath !== rawPath) return soundPadResponse({ error: `Invalid sound path: ${rawPath}` }, 400);
+				normalizedPaths.push(normalizedPath);
+			}
+
+			const storedRecords = await getStoredSoundInventory(this.ctx.storage);
+			if (!isCompleteScan) {
+				for (const record of storedRecords) {
+					if (record.available) normalizedPaths.push(record.path);
+				}
+			}
+			if (resource === "soundInventorySync") {
+				const storedByPath = new Map(storedRecords.map((record) => [record.path, record]));
+				const storedById = new Map(storedRecords.map((record) => [record.soundId, record.path]));
+				const incomingByPath = new Map<string, string>();
+				const incomingById = new Map<string, string>();
+				const highestStoredId = Math.max(0, ...storedRecords.map((record) => Number(record.soundId)));
+				if (previousRecords.length > 999) return soundPadResponse({ error: "SoundID capacity exceeded" }, 409);
+				for (const rawRecord of previousRecords) {
+					if (!rawRecord || typeof rawRecord !== "object" || typeof rawRecord.soundId !== "string" || !/^\d{3}$/.test(rawRecord.soundId) || typeof rawRecord.path !== "string" || typeof rawRecord.name !== "string" || typeof rawRecord.available !== "boolean") {
+						return soundPadResponse({ error: "Invalid sound inventory record" }, 400);
+					}
+					const path = normalizeSoundPath(rawRecord.path);
+					if (!path || path !== rawRecord.path) return soundPadResponse({ error: "Invalid sound inventory path" }, 400);
+					if ((incomingByPath.has(path) && incomingByPath.get(path) !== rawRecord.soundId) || (incomingById.has(rawRecord.soundId) && incomingById.get(rawRecord.soundId) !== path)) {
+						return soundPadResponse({ error: "Duplicate sound ID or path in manifest" }, 400);
+					}
+					incomingByPath.set(path, rawRecord.soundId);
+					incomingById.set(rawRecord.soundId, path);
+					const knownPath = storedByPath.get(path);
+					const knownIdPath = storedById.get(rawRecord.soundId);
+					if ((knownPath && knownPath.soundId !== rawRecord.soundId) || (knownIdPath && knownIdPath !== path)) {
+						return soundPadResponse({ error: `SoundID conflict for ${path}; the stored inventory was left unchanged.` }, 409);
+					}
+					if (!knownPath && Number(rawRecord.soundId) <= highestStoredId && SOUND_BY_ID[rawRecord.soundId as keyof typeof SOUND_BY_ID] !== path) {
+						return soundPadResponse({ error: `SoundID ${rawRecord.soundId} cannot be reused.` }, 409);
+					}
+				}
+			}
+
+			const previous = [...storedRecords, ...previousRecords];
+			let reconciled;
+			try {
+				reconciled = reconcileSoundInventory(previous, normalizedPaths, SOUND_BY_ID);
+			} catch (error) {
+				return soundPadResponse({ error: error instanceof Error ? error.message : "No se pudo reconciliar el inventario." }, 409);
+			}
+			const previouslyKnownPaths = new Set([...storedRecords.map((record) => record.path), ...Object.values(SOUND_BY_ID)]);
+			const newCount = [...new Set(normalizedPaths)].filter((path) => !previouslyKnownPaths.has(path)).length;
+			await this.ctx.storage.put(SOUND_INVENTORY_STORAGE_KEY, { version: 1, records: reconciled.records });
+			return soundPadResponse({
+				records: reconciled.records,
+				found: new Set(normalizedPaths).size,
+				newCount,
+				existingCount: new Set(normalizedPaths).size - newCount,
+				absentCount: reconciled.absent.length,
+				source: resource === "soundInventoryScan" ? "build-snapshot" : "local-filesystem",
+			});
+		}
+
 		if (resource === "soundPad" || resource === "soundPadGeneral") {
 			const storageKey =
 				resource === "soundPadGeneral"
 					? SOUND_PAD_GENERAL_STORAGE_KEY
 					: SOUND_PAD_STORAGE_KEY;
+			const soundInventory = await getStoredSoundInventory(this.ctx.storage);
 
 			if (request.method === "OPTIONS") {
 				return soundPadResponse(null, 204);
@@ -355,7 +471,7 @@ export class PartyRoom extends Server {
 					const storedValue = await this.ctx.storage.get<unknown>(
 					storageKey,
 				);
-					const storedConfig = normalizeStoredSoundPadConfig(storedValue);
+					const storedConfig = normalizeStoredSoundPadConfig(storedValue, soundInventory);
 					if (
 						storedConfig &&
 						JSON.stringify(storedValue) !== JSON.stringify(storedConfig)
@@ -378,7 +494,8 @@ export class PartyRoom extends Server {
 					return soundPadResponse({ error: "Invalid JSON payload" }, 400);
 				}
 
-				const result = SoundPadConfigSchema.safeParse(payload);
+				const authorizedPaths = new Set([...AUTHORIZED_SOUND_PATHS, ...soundInventory.map((record) => record.path)]);
+				const result = createSoundPadConfigSchema(authorizedPaths).safeParse(payload);
 				if (!result.success) {
 					return soundPadResponse(
 						{
@@ -389,9 +506,29 @@ export class PartyRoom extends Server {
 					);
 				}
 
-					const existingConfig = normalizeStoredSoundPadConfig(
-						await this.ctx.storage.get<unknown>(storageKey),
-					);
+					const existingValue = await this.ctx.storage.get<unknown>(storageKey);
+					const existingConfig = normalizeStoredSoundPadConfig(existingValue, soundInventory);
+					const inventoryByPath = new Map(soundInventory.map((record) => [record.path, record]));
+					for (const [soundId, soundPath] of Object.entries(SOUND_BY_ID)) {
+						inventoryByPath.set(soundPath, { soundId, path: soundPath, name: soundFileName(soundPath), available: true });
+					}
+					for (const assignment of result.data.assignments) {
+						if (!assignment.soundPath && !assignment.soundId) continue;
+						const registered = assignment.soundPath ? inventoryByPath.get(assignment.soundPath) : undefined;
+						const previousAssignment = existingConfig?.assignments.find((candidate) => candidate.padId === assignment.padId);
+						const unchangedLegacy = Boolean(
+							previousAssignment &&
+							previousAssignment.soundId === assignment.soundId &&
+							previousAssignment.soundPath === assignment.soundPath,
+						);
+						if (registered) {
+							if (!registered.available && !unchangedLegacy) return soundPadResponse({ error: "El sonido registrado no está disponible." }, 400);
+							if (assignment.soundId !== registered.soundId) return soundPadResponse({ error: "El IDSONG no corresponde a la ruta registrada." }, 400);
+							continue;
+						}
+						if (assignment.soundId && SOUND_BY_ID[assignment.soundId as keyof typeof SOUND_BY_ID] && !assignment.soundPath) continue;
+						if (!unchangedLegacy) return soundPadResponse({ error: "El sonido no está registrado en el inventario." }, 400);
+					}
 					const incomingByPadId = new Map(
 						result.data.assignments.map((assignment) => [assignment.padId, assignment]),
 					);
@@ -858,6 +995,7 @@ export class PartyRoom extends Server {
 
 interface Env {
 	PartyRoom: DurableObjectNamespace<PartyRoom>;
+	SOUND_INVENTORY_SYNC_SECRET?: string;
 }
 
 export default {
@@ -865,6 +1003,13 @@ export default {
 		const url = new URL(request.url);
 
 		if (url.pathname === "/soundpad") {
+			const resource = url.searchParams.get("resource");
+			if (resource === "soundInventorySync" || resource === "soundInventoryScan") {
+				const secret = env.SOUND_INVENTORY_SYNC_SECRET;
+				if (!secret || request.headers.get("Authorization") !== `Bearer ${secret}`) {
+					return soundPadResponse({ error: "Unauthorized inventory update" }, 401);
+				}
+			}
 			const id = env.PartyRoom.idFromName("__soundpad-general__");
 			const stub = env.PartyRoom.get(id);
 			return stub.fetch(new Request(request));
