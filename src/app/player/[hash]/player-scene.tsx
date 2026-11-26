@@ -521,6 +521,9 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     query: {
       role: "host",
     },
+    onOpen() {
+      playerActionsRef.current?.reportPlayback();
+    },
     onMessage(event) {
       // TODO: Improve type safety
       const eventData = JSON.parse(event.data);
@@ -800,6 +803,16 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
     }
   };
 
+  const reportPlayback = (playing: boolean) => {
+    if (!currentVideo) return;
+
+    sendSocketMessage({
+      type: "playback-state",
+      id: currentVideo.id,
+      playing,
+    } satisfies Message);
+  };
+
   // Add keyboard shortcuts
   // f - fullscreen toggle, space - play/pause, right arrow - skip video
   useHotkeys([
@@ -870,6 +883,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                   markAsPlayed();
                 }}
                 onTogglePlayPauseRef={togglePlayPauseRef}
+                onPlaybackChange={reportPlayback}
               />
             ) : !waitingVideoDismissed ? (
               <Player

@@ -40,6 +40,7 @@ import { chooseRatingPhrase, generateRatingScore } from "~/utils/rating";
 import { getQueueIndexes, moveInQueue } from "~/utils/playlist";
 import type {
   PlaylistOperationResult,
+	  PlaybackState,
   SoundInventoryRecord,
   SoundPadConfig,
 } from "~/shared/party-types";
@@ -114,6 +115,12 @@ const PlaySchema = z.object({
 
 const PauseSchema = z.object({
 	type: z.literal("pause"),
+});
+
+const PlaybackStateSchema = z.object({
+	type: z.literal("playback-state"),
+	id: z.string(),
+	playing: z.boolean(),
 });
 
 const ResetSongSchema = z.object({
@@ -227,6 +234,7 @@ const MessageSchema = z.discriminatedUnion("type", [
 	MarkAsPlayedSchema,
 	PlaySchema,
 	PauseSchema,
+	PlaybackStateSchema,
 	ResetSongSchema,
 	ToggleFullscreenSchema,
 	HornSchema,
@@ -355,6 +363,7 @@ export class PartyRoom extends Server {
 	karaokeParty: KaraokeParty | undefined;
 	activeRatingId: string | null = null;
 	activeRatingExpiresAt = 0;
+	playbackState: PlaybackState | null = null;
 	private messageQueue: Promise<void> = Promise.resolve();
 
 	override async onStart() {
@@ -606,7 +615,16 @@ export class PartyRoom extends Server {
 					: {}),
 			}),
 		);
-	}
+
+			if (role === "COHOST" && this.playbackState) {
+				connection.send(
+					JSON.stringify({
+						type: "playback-state",
+						...this.playbackState,
+					}),
+				);
+			}
+		}
 
 	override async onMessage(connection: Connection, message: WSMessage) {
 
@@ -673,6 +691,29 @@ export class PartyRoom extends Server {
 				}
 
 				this.broadcast(JSON.stringify(data));
+				return;
+			}
+
+			case "playback-state": {
+				if (role !== "HOST") {
+					return;
+				}
+
+				this.playbackState = {
+					id: data.id,
+					playing: data.playing,
+				};
+
+				const payload = JSON.stringify({
+					type: "playback-state",
+					...this.playbackState,
+				});
+				for (const target of this.getConnections()) {
+					const targetState = target.state as { role?: ClientRole } | null;
+					if (targetState?.role === "COHOST") {
+						target.send(payload);
+					}
+				}
 				return;
 			}
 
@@ -808,6 +849,9 @@ export class PartyRoom extends Server {
 				);
 
 				if (index !== -1) {
+					if (this.playbackState?.id === data.id) {
+						this.playbackState = null;
+					}
 					this.karaokeParty.playlist.splice(index, 1);
 					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
 					this.broadcastPlaylistState();
@@ -925,6 +969,9 @@ export class PartyRoom extends Server {
 
 				if (video) {
 					video.playedAt = new Date();
+					if (this.playbackState?.id === video.id) {
+						this.playbackState = null;
+					}
 
 					await this.ctx.storage.put("karaokeParty", this.karaokeParty);
 					this.broadcastPlaylistState();

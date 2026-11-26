@@ -5,6 +5,7 @@ import type { Party } from "@prisma/client";
 import type {
   Message,
   KaraokeParty,
+  PlaybackState,
   PlaylistOperationResult,
 } from "~/shared/party-types";
 import { useEffect, useState, useRef } from "react";
@@ -92,6 +93,7 @@ export function PartyScene({
   const [isPlaylistVisible, setIsPlaylistVisible] = useState(true);
   const [isResetPending, setIsResetPending] = useState(false);
   const [isRatingPending, setIsRatingPending] = useState(false);
+  const [playback, setPlayback] = useState<PlaybackState | null>(null);
 
   useEffect(() => {
     const content = contentScrollRef.current;
@@ -155,6 +157,13 @@ export function PartyScene({
           }
 
           return;
+        }
+
+        if (eventData.type === "playback-state") {
+          setPlayback({
+            id: String(eventData.id),
+            playing: Boolean(eventData.playing),
+          });
         }
 
         if (eventData.type === "horn") {
@@ -316,6 +325,16 @@ export function PartyScene({
     sendSocketMessage({ type: "pause" } as Message);
   };
 
+  const togglePlayback = () => {
+    if (!nextVideo) return;
+
+    if (isPlaying) {
+      sendPause();
+    } else {
+      sendPlay();
+    }
+  };
+
   const sendResetSong = () => {
     if (!nextVideo || isResetPending) {
       if (!nextVideo) {
@@ -374,6 +393,11 @@ export function PartyScene({
 
   const nextVideos = playlist.filter((video) => !video.playedAt);
   const nextVideo = nextVideos[0] ?? null;
+  const isPlaying =
+    role === "COHOST" &&
+    nextVideo !== null &&
+    playback?.id === nextVideo.id &&
+    playback.playing;
   const joinPartyUrl = getUrl(`/join/${party.hash}`);
 
   return (
@@ -613,10 +637,10 @@ export function PartyScene({
               </button>
             </div>
             {role === "COHOST" && (
-              <div className="flex shrink-0 flex-nowrap items-center justify-center gap-2 sm:gap-4">
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-between gap-3 sm:gap-6">
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary min-w-0 flex-1 px-1"
                   onClick={sendResetSong}
                   disabled={!nextVideo || isResetPending}
                   aria-label="Reiniciar canción"
@@ -628,25 +652,26 @@ export function PartyScene({
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary"
-                  onClick={sendPlay}
-                  aria-label="Reproducir canción"
-                  title="Reproducir canción"
+                  className="btn btn-secondary min-w-0 flex-1 px-1"
+                  onClick={togglePlayback}
+                  disabled={!nextVideo}
+                  aria-label={isPlaying ? "Pausar canción" : "Reproducir canción"}
+                  title={isPlaying ? "Pausar canción" : "Reproducir canción"}
                 >
-                  <Play className="h-5 w-5" />
+                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                 </button>
-                <button
+                {false && <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="hidden"
                   onClick={sendPause}
                   aria-label="Pausar canción"
                   title="Pausar canción"
                 >
                   <Pause className="h-5 w-5" />
-                </button>
+                </button>}
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary min-w-0 flex-1 px-1"
                   onClick={sendSkip}
                   disabled={!nextVideo}
                   aria-label="Siguiente canción"
@@ -656,7 +681,7 @@ export function PartyScene({
                 </button>
                 <button
                   type="button"
-                  className="btn btn-secondary"
+                  className="btn btn-secondary min-w-0 flex-1 px-1"
                   onClick={sendToggleFullscreen}
                   aria-label="Pantalla completa"
                   title="Pantalla completa"

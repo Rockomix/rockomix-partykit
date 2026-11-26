@@ -17,6 +17,11 @@ export type KaraokeParty = {
   };
 };
 
+export type PlaybackState = {
+  id: string;
+  playing: boolean;
+};
+
 export type SoundPadAssignment = {
   padId: number;
   soundId: string | null;
@@ -69,6 +74,7 @@ export type Message =
   | { type: "soundpad"; soundId: string }
   | { type: "play" }
   | { type: "pause" }
+  | ({ type: "playback-state" } & PlaybackState)
   | {
       type: "reset-song";
       id: string;
