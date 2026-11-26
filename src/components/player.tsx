@@ -28,6 +28,7 @@ type Props = {
   isFullscreen: boolean;
   onPlayerEnd: () => void;
   onTogglePlayPauseRef?: React.MutableRefObject<(() => void) | null>;
+  onPlaybackChange?: (playing: boolean) => void;
   isWaiting?: boolean;
 };
 
@@ -37,6 +38,7 @@ export type PlayerActions = {
   reset: () => void;
   skip: () => void;
   toggle: () => void;
+  reportPlayback: () => void;
 };
 
 export const Player = forwardRef<PlayerActions, Props>(function Player(
@@ -46,6 +48,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     isFullscreen = false,
     onPlayerEnd,
     onTogglePlayPauseRef,
+    onPlaybackChange,
     isWaiting = false,
   }: Props,
   ref,
@@ -120,6 +123,17 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   }, [isReady]);
 
+  const reportPlayback = useCallback(() => {
+    if (!playerRef.current || !isReady) return;
+
+    const state = playerRef.current.getPlayerState();
+    if (state === 1) {
+      onPlaybackChange?.(true);
+    } else if (state === 2) {
+      onPlaybackChange?.(false);
+    }
+  }, [isReady, onPlaybackChange]);
+
   const skip = useCallback(() => {
     onPlayerEnd();
   }, [onPlayerEnd]);
@@ -132,8 +146,9 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       reset,
       skip,
       toggle: togglePlayPause,
+      reportPlayback,
     }),
-    [pause, play, reset, skip, togglePlayPause],
+    [pause, play, reportPlayback, reset, skip, togglePlayPause],
   );
 
   const opts: YouTubeProps["opts"] = {
@@ -177,16 +192,25 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       resetWhenReadyRef.current = false;
       event.target.seekTo(0, true);
     }
+
+    const state = event.target.getPlayerState();
+    if (state === 1) {
+      onPlaybackChange?.(true);
+    } else if (state === 2) {
+      onPlaybackChange?.(false);
+    }
   };
 
   const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {
     console.log("handlePlay");
     setIsPlaying(true);
+    onPlaybackChange?.(true);
   };
 
   const onPlayerPause: YouTubeProps["onPause"] = (_event) => {
     console.log("handlePause");
     setIsPlaying(false);
+    onPlaybackChange?.(false);
   };
 
   const onPlayerError: YouTubeProps["onError"] = (_event) => {
