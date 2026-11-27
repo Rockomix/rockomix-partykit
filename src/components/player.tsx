@@ -54,6 +54,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
   ref,
 ) {
   const playerRef = useRef<YouTubePlayer>(null);
+  const captionsHandledVideoIdRef = useRef<string | null>(null);
 
   const [isReady, setIsReady] = useState(false);
   const [showOpenInYouTubeButton, setShowOpenInYouTubeButton] = useState(false);
@@ -134,6 +135,15 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   }, [isReady, onPlaybackChange]);
 
+  const disableCaptions = async (player: YouTubePlayer) => {
+    try {
+      await player.unloadModule("captions");
+      await player.setOption("captions", "track", {});
+    } catch {
+      // Caption control must not interrupt playback.
+    }
+  };
+
   const skip = useCallback(() => {
     onPlayerEnd();
   }, [onPlayerEnd]);
@@ -158,6 +168,7 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       autoplay: 1,
       rel: 0,
       controls: 1,
+      cc_load_policy: 0,
       ...(isWaiting
         ? {
             loop: 1,
@@ -201,10 +212,15 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
     }
   };
 
-  const onPlayerPlay: YouTubeProps["onPlay"] = (_event) => {
+  const onPlayerPlay: YouTubeProps["onPlay"] = (event) => {
     console.log("handlePlay");
     setIsPlaying(true);
     onPlaybackChange?.(true);
+
+    if (captionsHandledVideoIdRef.current !== video.id) {
+      captionsHandledVideoIdRef.current = video.id;
+      void disableCaptions(event.target);
+    }
   };
 
   const onPlayerPause: YouTubeProps["onPause"] = (_event) => {
