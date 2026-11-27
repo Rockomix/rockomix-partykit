@@ -1,5 +1,6 @@
 import { log } from "next-axiom";
 import { z } from "zod";
+import { FILTER_EMBEDDABLE } from "~/constants/youtube";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
 export const youtubeRouter = createTRPCRouter({
@@ -10,7 +11,7 @@ export const youtubeRouter = createTRPCRouter({
 
       log.info("Searching for videos", { keyword });
 
-      const cacheKey = `youtube-search:${keyword}`;
+      const cacheKey = `youtube-search:${FILTER_EMBEDDABLE ? "all" : "embeddable"}:${keyword}`;
 
       const cachedVideos =
         await ctx.cache.get<ReturnType<typeof ctx.youtube.searchVideo>>(

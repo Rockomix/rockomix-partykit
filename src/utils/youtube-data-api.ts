@@ -1,5 +1,6 @@
 import axios from "axios";
 import { env } from "~/env";
+import { FILTER_EMBEDDABLE } from "~/constants/youtube";
 
 interface Thumbnail {
   url: string;
@@ -108,6 +109,9 @@ class YouTubeDataAPI {
               type: "video",
               q: query,
               maxResults,
+              ...(FILTER_EMBEDDABLE
+                ? {}
+                : { videoEmbeddable: "true" }),
             },
           },
         );
