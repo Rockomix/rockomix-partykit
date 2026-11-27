@@ -1032,6 +1032,7 @@ export default function PlayerScene({ party, initialPlaylist }: Props) {
                       <Image
                         src={v.coverUrl}
                         fill={true}
+                        unoptimized
                         className="pointer-events-none rounded-lg hover:opacity-50"
                         alt="Cover"
                       />
