@@ -168,6 +168,10 @@ export const Player = forwardRef<PlayerActions, Props>(function Player(
       autoplay: 1,
       rel: 0,
       controls: 1,
+      // Oculta el botón de pantalla completa de YouTube: solo amplía el video
+      // y oculta nuestros elementos superpuestos (QR y botón Saltar).
+      // Utiliza en su lugar la pantalla completa de la aplicación.
+      fs: 0,
       cc_load_policy: 0,
       ...(isWaiting
         ? {
